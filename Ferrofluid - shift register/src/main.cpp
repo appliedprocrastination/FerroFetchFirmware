@@ -1,21 +1,23 @@
 #include <Arduino.h>
+#include <ArduinoUnit.h>
+#include <MagnetMatrix.h>
 
-const bool DEBUG = true;
-int counter = 0;     //debugvariabler 
-int startTime = 0;   //debugvariabler
+const bool DEBUG = false;
+int counter = 0;                //debugvariabler
+unsigned long startTime = 0;    //debugvariabler
 //Pin connected to RCLK of SN74HC595
-int shiftEnablePins[] = {2,5,8,11,14,17,20,23,26,29};   //RCLK
+int shiftEnablePins[] = {2,5,8,11,14,17,20,23,26,29};   //RCLK, NOTE: the variable "registers" will change how many of these pinsare initiated
 //Pin connected to SRCLK of SN74HC595
-int shiftClkPins[] = {3,6,9,12,15,18,21,24,27,30};      //SRCLK
+int shiftClkPins[] = {3,6,9,12,15,18,21,24,27,30};      //SRCLK, NOTE: the variable "registers" will change how many of these pinsare initiated
 ////Pin connected to SER of SN74HC595
-int shiftDataPins[] = {4,7,10,13,16,19,22,25,28,31};    //SER
+int shiftDataPins[] = {4,7,10,13,16,19,22,25,28,31};    //SER, NOTE: the variable "registers" will change how many of these pinsare initiated
 
-int registers = 1; // no of register series (indicating no of PCBs)
-int bytesPerRegister = 4; // no of shift registers in series per line (4 = 32 bit/magnets)
+int registers = 1; // no of register series (indicating no of magnet-driver-PCBs connected to the Arduino)
+int bytesPerRegister = 4; // no of 8-bit shift registers in series per line (4 = 32 bits(/magnets))
 
 //holders for infromation you're going to pass to shifting function
-const int ROWS = 6;
-const int COLS = 5;
+const int ROWS = 5;//12
+const int COLS = 5;//21
 
 //Timekeeping variables:
 float timeTilStart[COLS][ROWS]; //The time in ms until a magnet should start. Used to make movement patterns before the movement should happen
@@ -23,21 +25,35 @@ float timeAtStart[COLS][ROWS]; //The time in ms when a magnet was started. Used 
 float timeAtEnd[COLS][ROWS]; //The duration a magnet should stay turned on once it's been turned on.
 unsigned long timeThisRefresh = 0;
 unsigned long timeForNewRefresh = 0;
-unsigned long timeBetweenRefreshes = 5000; //ms, meaning 60 seconds
 
 //Other movement related variables
-int dutyCycle[COLS][ROWS]; //Probably not needed, just creating it to remember thinking more about it later
-int shortDelay = 200; //ms
-int longDelay = 500; //ms
+uint8_t dutyCycle[COLS][ROWS]; //Probably not needed, just creating it to remember thinking more about it later
+uint8_t dutyCycleCounter = 0;
+uint8_t dutyCycleResolution = 20;
+int shortDelay = 400; //ms
+int longDelay = 700; //ms
+unsigned long timeBetweenRefreshes = 4*shortDelay*2+4*shortDelay;//12*shortDelay; //ms, meaning 60 seconds
+
+int frame = 1;
 
 //States
 enum MagState{OFF, ON};
 MagState prevMagnetState[COLS][ROWS];
 MagState currMagnetState[COLS][ROWS];
 
+//Function headers:
+void turnMagnetOnIn(int x, int y, int inMillis, int forMillis, uint8_t uptime=100); //Uptime in percent
 
-void updateStateAt(int x, int y){
+//Functions:
+boolean magnetIsToggledThisIteration(int x, int y){
   if(prevMagnetState[x][y] == OFF && currMagnetState[x][y] == ON){
+    return true;
+  }
+  return false;
+}
+
+void updateTimeAtStart(int x, int y){
+  if(magnetIsToggledThisIteration(x,y)){
     timeAtStart[x][y] = timeThisRefresh;
   }
 }
@@ -45,16 +61,31 @@ void updateStateAt(int x, int y){
 void updateAllStates(){
   for (int x = 0; x < COLS; x++) {
     for (int y = 0; y < ROWS; y++) {
-      if(timeAtStart[x][y] <= timeThisRefresh && timeAtEnd[x][y]>timeThisRefresh){
+      if(timeTilStart[x][y] <= timeThisRefresh && timeAtEnd[x][y]>timeThisRefresh){
         currMagnetState[x][y] = ON;
+
+        if(dutyCycle[x][y] < dutyCycleCounter){
+          currMagnetState[x][y] = OFF;
+        }
+
+        if(DEBUG && false){ //Using &&false when I don't want this output
+          Serial.print("Magnet (");
+          Serial.print(x);
+          Serial.print(",");
+          Serial.print(y);
+          Serial.println(") will turn ON this iteration: ");
+        }
+
       }else if (timeAtEnd[x][y] <= timeThisRefresh ) {
-        currMagnetState[x][y] = OFF;
+        currMagnetState[x][y] = OFF; //unnecessary? These are turned OFF in movementAlgorithm()
 
       } else {
-        /* code */
+
       }
     }
   }
+  dutyCycleCounter++;
+  if(dutyCycleCounter>=dutyCycleResolution) dutyCycleCounter=0;
 }
 
 void shiftOut(int registerIndex){
@@ -63,8 +94,8 @@ void shiftOut(int registerIndex){
   //clock idles low
 
   //Register-index must be translated to display-coordinates
-  //For y < COLS: y=registerIndex (The m=21 MSB represents the y'th row)
-  //For y >=COLS: TODO: Yet to be decided (spread out on the ten PCBs somehow)
+  //For bit n < COLS: y=registerIndex (The m=21 MSB represents the y'th row)
+  //For bit n >=COLS: TODO: Yet to be decided (spread out on the ten PCBs somehow)
   int x;
   int y = registerIndex;
   //clear everything out just in case to
@@ -77,7 +108,7 @@ void shiftOut(int registerIndex){
 
     //Sets the pin to HIGH or LOW depending on pinState
     digitalWrite(shiftDataPins[registerIndex], currMagnetState[x][y]);
-    updateStateAt(x,y);
+    updateTimeAtStart(x,y);
     //register shifts bits on upstroke of clock pin
     digitalWrite(shiftClkPins[registerIndex], HIGH);
     //zero the data pin after shift to prevent bleed through
@@ -90,7 +121,7 @@ void shiftOut(int registerIndex){
       digitalWrite(shiftClkPins[registerIndex], LOW);
 
       digitalWrite(shiftDataPins[registerIndex], 0); //TODO: This is temporarily ignored magnetState needs to be set
-      updateStateAt(x,y);
+      updateTimeAtStart(x,y);
       digitalWrite(shiftClkPins[registerIndex], HIGH);
       digitalWrite(shiftDataPins[registerIndex], LOW);
   }
@@ -99,47 +130,54 @@ void shiftOut(int registerIndex){
 }
 
 void shiftOut_TinyMatrix(int registerIndex){
-  //This shifts (8*BitsPerRegister) bits out (TODO: was MSB first when the loops counted down from 7, how is this now?),
+  // This function does the same job as shiftOut() except that it doesnt have a special case routine for handling the two leftover rows that exist in the planned 12x23 matrix with 10 driver-PCBs
+  // This function is intended for smaller matrices (like the prototype, which has 5x6 magnets), where there are several rows controlled by the same PCB
+
+  //This shifts (COLS*ROWS) bits out to the register at registerIndex,
   //on the rising edge of the clock,
   //clock idles low
 
-  //Register-index must be translated to display-coordinates
-  //For y < COLS: y=registerIndex (The m=21 MSB represents the y'th row)
-  //For y >=COLS: TODO: Yet to be decided (spread out on the ten PCBs somehow)
+  //Register-index must be translated to display-coordinates:
+  //The following algorithm assumes that the magnets are connected row by row, meaning that
+  //The n=[0,...,COLS)      first bits corresponds to row[0],
+  //The n=[COLS,...,2*COLS) first bits corresponds to row[1], etc.
   int x;
-  int y = registerIndex;
+  int y;
+
   //clear everything out just in case to
   //prepare shift register for bit shifting
   digitalWrite(shiftDataPins[registerIndex], LOW);
   digitalWrite(shiftClkPins[registerIndex], LOW);
-  //Write out the COLS = 21 first values:
 
-  for(y=0; y<ROWS; y++){
-    for(x=0; x<COLS; x++){
-      //NOTE: The first thing written will be pushed to the very end of the register (meaning coord (0,0) will be on Q_h of the 4th 8-bit register in a 32-bit regiser series).
+  //Write out the ROWS*COLS first values:
+  for(y=ROWS-1;y>=0;y--){
+    for(x=COLS-1; x>=0; x--){
+      //NOTE: The first thing written will be pushed to the very end of the register.
       digitalWrite(shiftClkPins[registerIndex], LOW);
       //Sets the pin to HIGH or LOW depending on pinState
 
       digitalWrite(shiftDataPins[registerIndex], currMagnetState[x][y]);
-      /*
-      Serial.print("(");
-      Serial.print(x);
-      Serial.print(",");
-      Serial.print(y);
-      Serial.print(") = ");
-      Serial.print(currMagnetState[x][y]);
-      */
-      updateStateAt(x,y);
+      if(DEBUG && timeThisRefresh >= timeForNewRefresh){
+        Serial.print("\t(");
+        Serial.print(x);
+        Serial.print(",");
+        Serial.print(y);
+        Serial.print(") = ");
+        Serial.print(currMagnetState[x][y]);
+      }
+
+      updateTimeAtStart(x,y);
 
       //register shifts bits on upstroke of clock pin
       digitalWrite(shiftClkPins[registerIndex], HIGH);
       //zero the data pin after shift to prevent bleed through
       digitalWrite(shiftDataPins[registerIndex], LOW);
     }
-
+    if(DEBUG && timeThisRefresh >= timeForNewRefresh)Serial.println();
   }
-    //stop shifting
-    digitalWrite(shiftClkPins[registerIndex], LOW);
+
+  //stop shifting
+  digitalWrite(shiftClkPins[registerIndex], LOW);
 }
 
 void refreshScreen(){
@@ -156,13 +194,32 @@ void refreshScreen(){
   }
 }
 
-void turnMagnetOnIn(int x, int y, int inMillis, int forMillis){
+void turnMagnetOnIn(int x, int y, int inMillis, int forMillis, uint8_t uptime){
+  //TODO: Make a FIFO buffer that can hold future (inMillis,forMillis) tuples. (Maybe: https://github.com/rlogiacco/CircularBuffer)
+  //The future inMillis must then be modified by subtracting the current inMillis, so that it can be placed in the timeTilStart array when the current inMillis has passed and the magnet is turned on.
+  //There also needs to be a check that the future inMillis will happen AFTER the current inMillis+current forMillis, so that the magnet has a pause of at least shortDelay (this minimum delay is a guess).
+
   timeTilStart[x][y] = timeThisRefresh + inMillis;
   timeAtEnd[x][y] = timeThisRefresh + inMillis + forMillis; //Equal to: timeTilStart+forMillis
+  if(uptime > 100) uptime = 100;
+  dutyCycle[x][y] = (uint8_t)((uptime / 100.0) * (dutyCycleResolution-1));
+  if(DEBUG && false){ //Using &&false when I don't want this output
+    Serial.print("Magnet (");
+    Serial.print(x);
+    Serial.print(",");
+    Serial.print(y);
+    Serial.print(") will turn ON at time: ");
+    Serial.print(timeTilStart[x][y]);
+    Serial.print("ms, and OFF at time:");
+    Serial.print(timeAtEnd[x][y]);
+    Serial.print("ms. Current time (ms): ");
+    Serial.println(timeThisRefresh);
+
+  }
 }
 
 void movementAlgorithm(){
-  if (!DEBUG){
+  if (DEBUG && false){
     Serial.print("timeThisRefresh: ");
     Serial.println(timeThisRefresh);
     Serial.print("timeForNewRefresh: ");
@@ -170,48 +227,192 @@ void movementAlgorithm(){
   }
   if(timeThisRefresh >= timeForNewRefresh){
 
-    for(int x = 0; x < COLS; x++){
+  /*  for(int x = 0; x < COLS; x++){
       for(int y = 0; y < ROWS; y++){
         currMagnetState[x][y] = OFF;
         //turnMagnetOnIn(x,y,shortDelay*counter+longDelay*counter, longDelay)
         //counter++;
       }
+    }*/
+    if(frame == 1){
+      int t = 0;
+      int distanceBetween = 2;
+      turnMagnetOnIn(4,0,t+0,500);
+      turnMagnetOnIn(4,1,t+shortDelay,longDelay);
+      turnMagnetOnIn(4,2,t+shortDelay*2,longDelay);
+      turnMagnetOnIn(4,3,t+shortDelay*3,longDelay);
+      turnMagnetOnIn(4,4,t+shortDelay*4,timeBetweenRefreshes-(t+shortDelay*4));
+      t = shortDelay*distanceBetween;
+      turnMagnetOnIn(3,0,t+0,500);
+      turnMagnetOnIn(3,1,t+shortDelay,longDelay);
+      turnMagnetOnIn(3,2,t+shortDelay*2,longDelay);
+      turnMagnetOnIn(3,3,t+shortDelay*3,longDelay);
+      turnMagnetOnIn(3,4,t+shortDelay*4,timeBetweenRefreshes-(t+shortDelay*4));
+      t += shortDelay*distanceBetween;
+      turnMagnetOnIn(2,0,t+0,500);
+      turnMagnetOnIn(2,1,t+shortDelay,longDelay);
+      turnMagnetOnIn(2,2,t+shortDelay*2,longDelay);
+      turnMagnetOnIn(2,3,t+shortDelay*3,longDelay);
+      turnMagnetOnIn(2,4,t+shortDelay*4,timeBetweenRefreshes-(t+shortDelay*4));
+      t += shortDelay*distanceBetween;
+      turnMagnetOnIn(1,0,t+0,500);
+      turnMagnetOnIn(1,1,t+shortDelay,longDelay);
+      turnMagnetOnIn(1,2,t+shortDelay*2,longDelay);
+      turnMagnetOnIn(1,3,t+shortDelay*3,longDelay);
+      turnMagnetOnIn(1,4,t+shortDelay*4,timeBetweenRefreshes-(t+shortDelay*4));
+      t += shortDelay*distanceBetween;
+      turnMagnetOnIn(0,0,t+0,500);
+      turnMagnetOnIn(0,1,t+shortDelay,longDelay);
+      turnMagnetOnIn(0,2,t+shortDelay*2,longDelay);
+      turnMagnetOnIn(0,3,t+shortDelay*3,longDelay);
+      turnMagnetOnIn(0,4,t+shortDelay*4,timeBetweenRefreshes-(t+shortDelay*4));
+
+      frame++;
+    }else if(frame == 2){
+      // Plot S
+      turnMagnetOnIn(1,0,0,timeBetweenRefreshes,45);
+      turnMagnetOnIn(2,0,0,timeBetweenRefreshes,45);
+      turnMagnetOnIn(3,0,0,timeBetweenRefreshes,45);
+
+      turnMagnetOnIn(3,1,0,timeBetweenRefreshes);
+
+      turnMagnetOnIn(1,2,0,timeBetweenRefreshes);
+      turnMagnetOnIn(2,2,0,timeBetweenRefreshes);
+      turnMagnetOnIn(3,2,0,timeBetweenRefreshes);
+
+      turnMagnetOnIn(1,3,0,timeBetweenRefreshes);
+
+      turnMagnetOnIn(1,4,0,timeBetweenRefreshes);
+      turnMagnetOnIn(2,4,0,timeBetweenRefreshes);
+      turnMagnetOnIn(3,4,0,timeBetweenRefreshes);
+
+      frame++;
+    }else if(frame == 3){
+      //plot E
+
+      turnMagnetOnIn(1,0,shortDelay,timeBetweenRefreshes-shortDelay,45);
+      turnMagnetOnIn(2,0,shortDelay,timeBetweenRefreshes-shortDelay,45);
+      turnMagnetOnIn(3,0,shortDelay,timeBetweenRefreshes-shortDelay,45);
+
+      turnMagnetOnIn(1,1,0,timeBetweenRefreshes);
+
+      turnMagnetOnIn(1,2,0,timeBetweenRefreshes,75);
+      turnMagnetOnIn(2,2,0,timeBetweenRefreshes);
+      turnMagnetOnIn(3,2,0,timeBetweenRefreshes);
+
+      turnMagnetOnIn(1,3,0,timeBetweenRefreshes);
+
+      turnMagnetOnIn(1,4,0,timeBetweenRefreshes);
+      turnMagnetOnIn(2,4,0,timeBetweenRefreshes);
+      turnMagnetOnIn(3,4,0,timeBetweenRefreshes);
+
+      frame++;
+    }else if(frame == 4){
+      //Plot F
+      //Row 0
+      turnMagnetOnIn(1,0,longDelay,timeBetweenRefreshes,45);
+      //turnMagnetOnIn(2,0,shortDelay,shortDelay);
+      //turnMagnetOnIn(3,0,0,longDelay);
+
+      //Row 1
+      turnMagnetOnIn(1,1,longDelay,timeBetweenRefreshes,75);
+      //turnMagnetOnIn(2,1,0,longDelay+shortDelay);
+      //turnMagnetOnIn(3,1,0,longDelay+shortDelay);
+      //Row 2
+      turnMagnetOnIn(1,2,shortDelay,timeBetweenRefreshes);
+      turnMagnetOnIn(2,2,0,timeBetweenRefreshes);
+      turnMagnetOnIn(3,2,0,timeBetweenRefreshes);
+      //Row 3
+      turnMagnetOnIn(1,3,0,timeBetweenRefreshes);
+      //Row 4
+      turnMagnetOnIn(1,4,0,timeBetweenRefreshes);
+      turnMagnetOnIn(2,4,0,timeBetweenRefreshes);
+      turnMagnetOnIn(3,4,0,timeBetweenRefreshes);
+
+      frame++;
+    } else if(frame == 5){
+      //Drag everything down
+      //Row 0
+      turnMagnetOnIn(1,0,0,shortDelay*5,45);
+      turnMagnetOnIn(2,0,0,shortDelay*5,45);
+      turnMagnetOnIn(3,0,0,shortDelay*5,45);
+
+      //Row 1
+      turnMagnetOnIn(1,1,0,shortDelay*4,75);
+      turnMagnetOnIn(2,1,0,shortDelay*4);
+      turnMagnetOnIn(3,1,0,shortDelay*4,75);
+      //Row 2
+      turnMagnetOnIn(1,2,0,shortDelay*3);
+      turnMagnetOnIn(2,2,0,shortDelay*3);
+      turnMagnetOnIn(3,2,0,shortDelay*3);
+      //Row 3
+      turnMagnetOnIn(1,3,0,shortDelay*2);
+      turnMagnetOnIn(2,3,0,shortDelay*2);
+      turnMagnetOnIn(3,3,0,shortDelay*2);
+      //Row 4
+      turnMagnetOnIn(1,4,0,shortDelay);
+      turnMagnetOnIn(2,4,0,shortDelay);
+      turnMagnetOnIn(3,4,0,shortDelay);
+
+      frame++;
+    }    else{
+
+
+
+      frame = 1;
     }
 
-    turnMagnetOnIn(2,0,0,longDelay);
-    turnMagnetOnIn(2,1,0,longDelay);
-    turnMagnetOnIn(2,2,0,longDelay);
-    turnMagnetOnIn(2,3,0,longDelay);
-    turnMagnetOnIn(2,4,0,longDelay);
-    turnMagnetOnIn(2,5,0,longDelay);
+    /*
+    turnMagnetOnIn(1,4,shortDelay*5,longDelay);
+    turnMagnetOnIn(2,4,shortDelay*6,longDelay);
+    turnMagnetOnIn(3,4,shortDelay*7,longDelay);
+    turnMagnetOnIn(4,4,shortDelay*8,longDelay);
+    turnMagnetOnIn(4,3,shortDelay*9,longDelay);
+    turnMagnetOnIn(4,2,shortDelay*10,longDelay);
+    turnMagnetOnIn(4,1,shortDelay*11,longDelay);
+    turnMagnetOnIn(3,1,shortDelay*12,longDelay);
+    turnMagnetOnIn(2,1,shortDelay*13,longDelay);
+    turnMagnetOnIn(1,1,shortDelay*14,longDelay);
+    */
+    //turnMagnetOnIn(1,0,shortDelay*15,longDelay);
+    //turnMagnetOnIn(2,5,0,longDelay);
 
-    timeForNewRefresh += timeBetweenRefreshes;
+
+    timeForNewRefresh += timeBetweenRefreshes; //Theoretically the same as timeThisRefresh+timeBetweenRefreshes, but in case a turn(ms) is skipped for some reason this will be more accurate.
   }
 }
-
 
 void setup() {
   Serial.begin(9600);
 
   Serial.println("Serial initiated");
+
+  //MagnetMatrix mmx = MagnetMatrix(shiftEnablePins,shiftClkPins,shiftDataPins,registers);
+  //mmx.printPinValues();
+
   //set pins to output because they are addressed in the main loop
-  for(unsigned int i = 0; i<sizeof(shiftEnablePins);i++){
-    pinMode(shiftEnablePins[i],HIGH);
+  for(int i = 0; i<registers; i++){ //(sizeof(shiftEnablePins) / sizeof(shiftEnablePins[0]))
+    pinMode(shiftEnablePins[i],OUTPUT);
   }
-  for(unsigned int i = 0; i<sizeof(shiftClkPins);i++){
-    pinMode(shiftClkPins[i],HIGH);
+  for(int i = 0; i<registers; i++){
+    pinMode(shiftClkPins[i],OUTPUT);
   }
-  for(unsigned int i = 0; i<sizeof(shiftDataPins);i++){
-    pinMode(shiftDataPins[i],HIGH);
+  for(int i = 0; i<registers; i++){
+    pinMode(shiftDataPins[i],OUTPUT);
   }
   for(int x=0; x<COLS; x++){
     for(int y=0;y<ROWS;y++){
       timeAtEnd[x][y] = 0;
       timeAtStart[x][y] = 0;
+      dutyCycle[x][y] = dutyCycleResolution;
     }
   }
-  Serial.println("Setup done...");
-
+  startTime = micros();
+  timeThisRefresh = millis();
+  timeForNewRefresh = timeThisRefresh+timeBetweenRefreshes;
+  Serial.print("Setup was executed in: ");
+  Serial.print(startTime);
+  Serial.println("us");
 }
 
 void loop(){
@@ -223,7 +424,7 @@ void loop(){
   else
     timeThisRefresh = ms;
   */
-  timeThisRefresh =ms;
+  timeThisRefresh = ms;
   // Below this point we know that 1ms has passed and we don't have to worry about millis() overflow if we use a 1ms increase.. At least thats the intention
   movementAlgorithm();
   //Serial.println("Movement Algorithm done...");
@@ -238,13 +439,24 @@ void loop(){
   }
   if(DEBUG){
     if(counter >= 1000){
-      Serial.print("Avg execution time (without 1ms delay): ");
-      Serial.print((millis()-startTime)/counter);
-      Serial.print(", based on : ");
+      //Test1:
+      //Conditions: No proper movementAlgorithm, ROWS=12, COLS=23, registers = 10, bytesPerRegister=4 (NOTE: this test used a shiftOut_TinyMatrix routine that only shifted out COLS=23 bits to each register(230 total), not 32)
+      //Result:     Avg execution time: 10732us(10.73ms), based on : 1000 executions, current time(ms): 21741
+      //Meaning:    The absolute lowest "low time" in a PWM configuration will be around 11ms
+      //Test2:
+      //Conditions: No proper movementAlgorithm, ROWS=12, COLS=21, registers = 1, bytesPerRegister=4 (NOTE: this test used a shiftOut_TinyMatrix routine that shifted out COLS*ROWS=252 bits to each register, not 32)
+      //Result:     Avg execution time: 11569us(11.57ms), based on : 1000 executions, current time(ms): 23356
+      //Meaning:    The absolute lowest "low time" in a PWM configuration will be around 12ms
+      Serial.print("Avg execution time: ");
+      Serial.print((micros()-startTime)/counter);
+      Serial.print("us(");
+      Serial.print((micros()-startTime)/(counter*1000.0));
+      Serial.print("ms), based on : ");
       Serial.print(counter);
-      Serial.println(" executions");
+      Serial.print(" executions, current time(ms): ");
+      Serial.println(millis());
       counter = 0;
-      startTime = millis();
+      startTime = micros();
     }else{
       counter++;
     }
