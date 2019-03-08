@@ -194,6 +194,402 @@ void refreshScreen(){
   }
 }
 
+void sefMovement(){
+  if(frame == 1){
+    int t = 0;
+    int distanceBetween = 2;
+    turnMagnetOnIn(4,0,t+0,500);
+    turnMagnetOnIn(4,1,t+shortDelay,longDelay);
+    turnMagnetOnIn(4,2,t+shortDelay*2,longDelay);
+    turnMagnetOnIn(4,3,t+shortDelay*3,longDelay);
+    turnMagnetOnIn(4,4,t+shortDelay*4,timeBetweenRefreshes-(t+shortDelay*4));
+    t = shortDelay*distanceBetween;
+    turnMagnetOnIn(3,0,t+0,500);
+    turnMagnetOnIn(3,1,t+shortDelay,longDelay);
+    turnMagnetOnIn(3,2,t+shortDelay*2,longDelay);
+    turnMagnetOnIn(3,3,t+shortDelay*3,longDelay);
+    turnMagnetOnIn(3,4,t+shortDelay*4,timeBetweenRefreshes-(t+shortDelay*4));
+    t += shortDelay*distanceBetween;
+    turnMagnetOnIn(2,0,t+0,500);
+    turnMagnetOnIn(2,1,t+shortDelay,longDelay);
+    turnMagnetOnIn(2,2,t+shortDelay*2,longDelay);
+    turnMagnetOnIn(2,3,t+shortDelay*3,longDelay);
+    turnMagnetOnIn(2,4,t+shortDelay*4,timeBetweenRefreshes-(t+shortDelay*4));
+    t += shortDelay*distanceBetween;
+    turnMagnetOnIn(1,0,t+0,500);
+    turnMagnetOnIn(1,1,t+shortDelay,longDelay);
+    turnMagnetOnIn(1,2,t+shortDelay*2,longDelay);
+    turnMagnetOnIn(1,3,t+shortDelay*3,longDelay);
+    turnMagnetOnIn(1,4,t+shortDelay*4,timeBetweenRefreshes-(t+shortDelay*4));
+    t += shortDelay*distanceBetween;
+    turnMagnetOnIn(0,0,t+0,500);
+    turnMagnetOnIn(0,1,t+shortDelay,longDelay);
+    turnMagnetOnIn(0,2,t+shortDelay*2,longDelay);
+    turnMagnetOnIn(0,3,t+shortDelay*3,longDelay);
+    turnMagnetOnIn(0,4,t+shortDelay*4,timeBetweenRefreshes-(t+shortDelay*4));
+
+    frame++;
+  }else if(frame == 2){
+    // Plot S
+    turnMagnetOnIn(1,0,0,timeBetweenRefreshes,45);
+    turnMagnetOnIn(2,0,0,timeBetweenRefreshes,45);
+    turnMagnetOnIn(3,0,0,timeBetweenRefreshes,45);
+
+    turnMagnetOnIn(3,1,0,timeBetweenRefreshes);
+
+    turnMagnetOnIn(1,2,0,timeBetweenRefreshes);
+    turnMagnetOnIn(2,2,0,timeBetweenRefreshes);
+    turnMagnetOnIn(3,2,0,timeBetweenRefreshes);
+
+    turnMagnetOnIn(1,3,0,timeBetweenRefreshes);
+
+    turnMagnetOnIn(1,4,0,timeBetweenRefreshes);
+    turnMagnetOnIn(2,4,0,timeBetweenRefreshes);
+    turnMagnetOnIn(3,4,0,timeBetweenRefreshes);
+
+    frame++;
+  }else if(frame == 3){
+    //plot E
+
+    turnMagnetOnIn(1,0,shortDelay,timeBetweenRefreshes-shortDelay,45);
+    turnMagnetOnIn(2,0,shortDelay,timeBetweenRefreshes-shortDelay,45);
+    turnMagnetOnIn(3,0,shortDelay,timeBetweenRefreshes-shortDelay,45);
+
+    turnMagnetOnIn(1,1,0,timeBetweenRefreshes);
+
+    turnMagnetOnIn(1,2,0,timeBetweenRefreshes,75);
+    turnMagnetOnIn(2,2,0,timeBetweenRefreshes);
+    turnMagnetOnIn(3,2,0,timeBetweenRefreshes);
+
+    turnMagnetOnIn(1,3,0,timeBetweenRefreshes);
+
+    turnMagnetOnIn(1,4,0,timeBetweenRefreshes);
+    turnMagnetOnIn(2,4,0,timeBetweenRefreshes);
+    turnMagnetOnIn(3,4,0,timeBetweenRefreshes);
+
+    frame++;
+  }else if(frame == 4){
+    //Plot F
+    //Row 0
+    turnMagnetOnIn(1,0,longDelay,timeBetweenRefreshes,45);
+    //turnMagnetOnIn(2,0,shortDelay,shortDelay);
+    //turnMagnetOnIn(3,0,0,longDelay);
+
+    //Row 1
+    turnMagnetOnIn(1,1,longDelay,timeBetweenRefreshes,75);
+    //turnMagnetOnIn(2,1,0,longDelay+shortDelay);
+    //turnMagnetOnIn(3,1,0,longDelay+shortDelay);
+    //Row 2
+    turnMagnetOnIn(1,2,shortDelay,timeBetweenRefreshes);
+    turnMagnetOnIn(2,2,0,timeBetweenRefreshes);
+    turnMagnetOnIn(3,2,0,timeBetweenRefreshes);
+    //Row 3
+    turnMagnetOnIn(1,3,0,timeBetweenRefreshes);
+    //Row 4
+    turnMagnetOnIn(1,4,0,timeBetweenRefreshes);
+    turnMagnetOnIn(2,4,0,timeBetweenRefreshes);
+    turnMagnetOnIn(3,4,0,timeBetweenRefreshes);
+
+    frame++;
+  } else if(frame == 5){
+    //Drag everything down
+    //Row 0
+    turnMagnetOnIn(1,0,0,shortDelay*5,45);
+    turnMagnetOnIn(2,0,0,shortDelay*5,45);
+    turnMagnetOnIn(3,0,0,shortDelay*5,45);
+
+    //Row 1
+    turnMagnetOnIn(1,1,0,shortDelay*4,75);
+    turnMagnetOnIn(2,1,0,shortDelay*4);
+    turnMagnetOnIn(3,1,0,shortDelay*4,75);
+    //Row 2
+    turnMagnetOnIn(1,2,0,shortDelay*3);
+    turnMagnetOnIn(2,2,0,shortDelay*3);
+    turnMagnetOnIn(3,2,0,shortDelay*3);
+    //Row 3
+    turnMagnetOnIn(1,3,0,shortDelay*2);
+    turnMagnetOnIn(2,3,0,shortDelay*2);
+    turnMagnetOnIn(3,3,0,shortDelay*2);
+    //Row 4
+    turnMagnetOnIn(1,4,0,shortDelay);
+    turnMagnetOnIn(2,4,0,shortDelay);
+    turnMagnetOnIn(3,4,0,shortDelay);
+
+    frame++;
+  }    else{
+
+
+
+    frame = 1;
+  }
+
+}
+
+void heiMovement(){
+  if(frame == 1){
+    int t = 0;
+    int distanceBetween = 2;
+    turnMagnetOnIn(4,0,t+0,500);
+    turnMagnetOnIn(4,1,t+shortDelay,longDelay);
+    turnMagnetOnIn(4,2,t+shortDelay*2,longDelay);
+    turnMagnetOnIn(4,3,t+shortDelay*3,longDelay);
+    turnMagnetOnIn(4,4,t+shortDelay*4,timeBetweenRefreshes-(t+shortDelay*4));
+    t = shortDelay*distanceBetween;
+    turnMagnetOnIn(3,0,t+0,500);
+    turnMagnetOnIn(3,1,t+shortDelay,longDelay);
+    turnMagnetOnIn(3,2,t+shortDelay*2,longDelay);
+    turnMagnetOnIn(3,3,t+shortDelay*3,longDelay);
+    turnMagnetOnIn(3,4,t+shortDelay*4,timeBetweenRefreshes-(t+shortDelay*4));
+    t += shortDelay*distanceBetween;
+    turnMagnetOnIn(2,0,t+0,500);
+    turnMagnetOnIn(2,1,t+shortDelay,longDelay);
+    turnMagnetOnIn(2,2,t+shortDelay*2,longDelay);
+    turnMagnetOnIn(2,3,t+shortDelay*3,longDelay);
+    turnMagnetOnIn(2,4,t+shortDelay*4,timeBetweenRefreshes-(t+shortDelay*4));
+    t += shortDelay*distanceBetween;
+    turnMagnetOnIn(1,0,t+0,500);
+    turnMagnetOnIn(1,1,t+shortDelay,longDelay);
+    turnMagnetOnIn(1,2,t+shortDelay*2,longDelay);
+    turnMagnetOnIn(1,3,t+shortDelay*3,longDelay);
+    turnMagnetOnIn(1,4,t+shortDelay*4,timeBetweenRefreshes-(t+shortDelay*4));
+    t += shortDelay*distanceBetween;
+    turnMagnetOnIn(0,0,t+0,500);
+    turnMagnetOnIn(0,1,t+shortDelay,longDelay);
+    turnMagnetOnIn(0,2,t+shortDelay*2,longDelay);
+    turnMagnetOnIn(0,3,t+shortDelay*3,longDelay);
+    turnMagnetOnIn(0,4,t+shortDelay*4,timeBetweenRefreshes-(t+shortDelay*4));
+
+    frame++;
+  }else if(frame == 2){
+    // Plot H
+    turnMagnetOnIn(0,0,0,longDelay);
+    turnMagnetOnIn(1,0,0,timeBetweenRefreshes,35);
+    turnMagnetOnIn(2,0,0,shortDelay);
+    turnMagnetOnIn(3,0,0,timeBetweenRefreshes,35);
+    turnMagnetOnIn(4,0,0,longDelay);
+
+    turnMagnetOnIn(0,1,0,longDelay);
+    turnMagnetOnIn(1,1,0,timeBetweenRefreshes,90);
+    turnMagnetOnIn(2,1,0,longDelay);
+    turnMagnetOnIn(3,1,0,timeBetweenRefreshes,90);
+    turnMagnetOnIn(4,1,0,longDelay);
+
+    turnMagnetOnIn(1,2,0,timeBetweenRefreshes,95);
+    turnMagnetOnIn(2,2,0,timeBetweenRefreshes);
+    turnMagnetOnIn(3,2,0,timeBetweenRefreshes,95);
+
+    turnMagnetOnIn(1,3,0,timeBetweenRefreshes);
+    turnMagnetOnIn(3,3,9,timeBetweenRefreshes);
+
+    turnMagnetOnIn(1,4,0,timeBetweenRefreshes);
+    //turnMagnetOnIn(2,4,0,timeBetweenRefreshes);
+    turnMagnetOnIn(3,4,0,timeBetweenRefreshes);
+
+    frame++;
+  }else if(frame == 3){
+    //plot E
+
+    turnMagnetOnIn(1,0,shortDelay,timeBetweenRefreshes-shortDelay,35);
+    turnMagnetOnIn(2,0,0,timeBetweenRefreshes,35);
+    turnMagnetOnIn(3,0,shortDelay,timeBetweenRefreshes-shortDelay,35);
+
+    turnMagnetOnIn(1,1,0,timeBetweenRefreshes,95);
+
+    turnMagnetOnIn(1,2,0,timeBetweenRefreshes,75);
+    turnMagnetOnIn(2,2,0,timeBetweenRefreshes);
+    turnMagnetOnIn(3,2,longDelay,timeBetweenRefreshes-longDelay);
+
+    turnMagnetOnIn(1,3,0,timeBetweenRefreshes);
+    turnMagnetOnIn(3,3,0,longDelay);
+
+    turnMagnetOnIn(1,4,0,timeBetweenRefreshes);
+    turnMagnetOnIn(2,4,0,timeBetweenRefreshes);
+    turnMagnetOnIn(3,4,0,timeBetweenRefreshes);
+
+    frame++;
+  }else if(frame == 4){
+    //Plot I
+    //Row 0
+    //turnMagnetOnIn(1,0,longDelay,timeBetweenRefreshes,45);
+    //turnMagnetOnIn(2,0,0,timeBetweenRefreshes,20);
+    //turnMagnetOnIn(3,0,0,longDelay);
+
+    //Row 1
+    //turnMagnetOnIn(1,1,longDelay,timeBetweenRefreshes,75);
+    turnMagnetOnIn(2,1,shortDelay*3,timeBetweenRefreshes,65);
+    //turnMagnetOnIn(3,1,0,longDelay+shortDelay);
+    //Row 2
+    //turnMagnetOnIn(1,2,shortDelay,timeBetweenRefreshes);
+    turnMagnetOnIn(2,2,shortDelay*2,timeBetweenRefreshes,90);
+    //turnMagnetOnIn(3,2,0,timeBetweenRefreshes);
+    //Row 3
+    turnMagnetOnIn(2,3,shortDelay,timeBetweenRefreshes);
+    //Row 4
+    //turnMagnetOnIn(1,4,0,timeBetweenRefreshes);
+    turnMagnetOnIn(2,4,0,timeBetweenRefreshes);
+    //turnMagnetOnIn(3,4,0,timeBetweenRefreshes);
+
+    frame++;
+  } else if(frame == 5){
+    //Drag everything down
+    //Row 0
+    turnMagnetOnIn(1,0,0,shortDelay*5,45);
+    turnMagnetOnIn(2,0,0,shortDelay*5,45);
+    turnMagnetOnIn(3,0,0,shortDelay*5,45);
+
+    //Row 1
+    turnMagnetOnIn(1,1,0,shortDelay*4,75);
+    turnMagnetOnIn(2,1,0,shortDelay*4);
+    turnMagnetOnIn(3,1,0,shortDelay*4,75);
+    //Row 2
+    turnMagnetOnIn(1,2,0,shortDelay*3);
+    turnMagnetOnIn(2,2,0,shortDelay*3);
+    turnMagnetOnIn(3,2,0,shortDelay*3);
+    //Row 3
+    turnMagnetOnIn(1,3,0,shortDelay*2);
+    turnMagnetOnIn(2,3,0,shortDelay*2);
+    turnMagnetOnIn(3,3,0,shortDelay*2);
+    //Row 4
+    turnMagnetOnIn(1,4,0,shortDelay);
+    turnMagnetOnIn(2,4,0,shortDelay);
+    turnMagnetOnIn(3,4,0,shortDelay);
+
+    frame++;
+  }    else{
+
+
+
+    frame = 1;
+  }
+
+
+}
+
+void hiMovement(){
+  if(frame == 1){
+    int t = 0;
+    int distanceBetween = 2;
+    turnMagnetOnIn(4,0,t+0,500);
+    turnMagnetOnIn(4,1,t+shortDelay,longDelay);
+    turnMagnetOnIn(4,2,t+shortDelay*2,longDelay);
+    turnMagnetOnIn(4,3,t+shortDelay*3,longDelay);
+    turnMagnetOnIn(4,4,t+shortDelay*4,timeBetweenRefreshes-(t+shortDelay*4));
+    t = shortDelay*distanceBetween;
+    turnMagnetOnIn(3,0,t+0,500);
+    turnMagnetOnIn(3,1,t+shortDelay,longDelay);
+    turnMagnetOnIn(3,2,t+shortDelay*2,longDelay);
+    turnMagnetOnIn(3,3,t+shortDelay*3,longDelay);
+    turnMagnetOnIn(3,4,t+shortDelay*4,timeBetweenRefreshes-(t+shortDelay*4));
+    t += shortDelay*distanceBetween;
+    turnMagnetOnIn(2,0,t+0,500);
+    turnMagnetOnIn(2,1,t+shortDelay,longDelay);
+    turnMagnetOnIn(2,2,t+shortDelay*2,longDelay);
+    turnMagnetOnIn(2,3,t+shortDelay*3,longDelay);
+    turnMagnetOnIn(2,4,t+shortDelay*4,timeBetweenRefreshes-(t+shortDelay*4));
+    t += shortDelay*distanceBetween;
+    turnMagnetOnIn(1,0,t+0,500);
+    turnMagnetOnIn(1,1,t+shortDelay,longDelay);
+    turnMagnetOnIn(1,2,t+shortDelay*2,longDelay);
+    turnMagnetOnIn(1,3,t+shortDelay*3,longDelay);
+    turnMagnetOnIn(1,4,t+shortDelay*4,timeBetweenRefreshes-(t+shortDelay*4));
+    t += shortDelay*distanceBetween;
+    turnMagnetOnIn(0,0,t+0,500);
+    turnMagnetOnIn(0,1,t+shortDelay,longDelay);
+    turnMagnetOnIn(0,2,t+shortDelay*2,longDelay);
+    turnMagnetOnIn(0,3,t+shortDelay*3,longDelay);
+    turnMagnetOnIn(0,4,t+shortDelay*4,timeBetweenRefreshes-(t+shortDelay*4));
+
+    frame++;
+  }else if(frame == 2){
+    // Plot HI
+
+
+    //turnMagnetOnIn(1,0,0,timeBetweenRefreshes,45);
+    //turnMagnetOnIn(2,0,0,timeBetweenRefreshes,45);
+    //turnMagnetOnIn(3,0,0,timeBetweenRefreshes,45);
+
+    turnMagnetOnIn(0,1,0,timeBetweenRefreshes,45);
+    //turnMagnetOnIn(1,1,0,timeBetweenRefreshes,90);
+    turnMagnetOnIn(2,1,0,timeBetweenRefreshes,45);
+    //turnMagnetOnIn(3,1,0,timeBetweenRefreshes,90);
+    turnMagnetOnIn(4,1,0,timeBetweenRefreshes,45);
+
+    turnMagnetOnIn(0,2,0,timeBetweenRefreshes,95);
+    turnMagnetOnIn(1,2,0,timeBetweenRefreshes);
+    turnMagnetOnIn(2,2,0,timeBetweenRefreshes,95);
+    turnMagnetOnIn(4,2,0,timeBetweenRefreshes);
+
+    turnMagnetOnIn(0,3,0,timeBetweenRefreshes);
+    turnMagnetOnIn(2,3,0,timeBetweenRefreshes);
+    turnMagnetOnIn(4,3,0,timeBetweenRefreshes);
+
+    //turnMagnetOnIn(1,4,0,timeBetweenRefreshes);
+    //turnMagnetOnIn(2,4,0,timeBetweenRefreshes);
+    //turnMagnetOnIn(3,4,0,timeBetweenRefreshes);
+
+    frame++;
+  }else if(frame == 3){
+    //plot :)
+
+    //turnMagnetOnIn(1,0,0,timeBetweenRefreshes,45);
+    //turnMagnetOnIn(2,0,0,timeBetweenRefreshes,45);
+    //turnMagnetOnIn(3,0,0,timeBetweenRefreshes,45);
+
+    turnMagnetOnIn(0,1,0,timeBetweenRefreshes,45);
+    turnMagnetOnIn(1,1,shortDelay,timeBetweenRefreshes);
+    turnMagnetOnIn(2,1,shortDelay,timeBetweenRefreshes);
+    turnMagnetOnIn(3,1,shortDelay,timeBetweenRefreshes);
+    turnMagnetOnIn(4,1,0,timeBetweenRefreshes,45);
+
+    turnMagnetOnIn(0,2,0,timeBetweenRefreshes);
+    //turnMagnetOnIn(1,2,0,timeBetweenRefreshes);
+    turnMagnetOnIn(2,2,0,shortDelay);
+    turnMagnetOnIn(4,2,0,timeBetweenRefreshes);
+
+    //turnMagnetOnIn(0,3,0,timeBetweenRefreshes);
+    turnMagnetOnIn(2,3,0,shortDelay*2);
+    //turnMagnetOnIn(4,3,0,timeBetweenRefreshes);
+
+    turnMagnetOnIn(1,4,0,timeBetweenRefreshes);
+    turnMagnetOnIn(2,4,0,shortDelay*2);
+    turnMagnetOnIn(3,4,0,timeBetweenRefreshes);
+
+    frame++;
+  } else if(frame == 4){
+    //Drag everything down
+    //Row 0
+    turnMagnetOnIn(1,0,0,shortDelay*5,45);
+    turnMagnetOnIn(2,0,0,shortDelay*5,45);
+    turnMagnetOnIn(3,0,0,shortDelay*5,45);
+
+    //Row 1
+    turnMagnetOnIn(1,1,0,shortDelay*4,75);
+    turnMagnetOnIn(2,1,0,shortDelay*4);
+    turnMagnetOnIn(3,1,0,shortDelay*4,75);
+    //Row 2
+    turnMagnetOnIn(1,2,0,shortDelay*3);
+    turnMagnetOnIn(2,2,0,shortDelay*3);
+    turnMagnetOnIn(3,2,0,shortDelay*3);
+    //Row 3
+    turnMagnetOnIn(1,3,0,shortDelay*2);
+    turnMagnetOnIn(2,3,0,shortDelay*2);
+    turnMagnetOnIn(3,3,0,shortDelay*2);
+    //Row 4
+    turnMagnetOnIn(1,4,0,shortDelay);
+    turnMagnetOnIn(2,4,0,shortDelay);
+    turnMagnetOnIn(3,4,0,shortDelay);
+
+    frame++;
+  } else{
+
+
+
+    frame = 1;
+  }
+
+
+}
+
 void turnMagnetOnIn(int x, int y, int inMillis, int forMillis, uint8_t uptime){
   //TODO: Make a FIFO buffer that can hold future (inMillis,forMillis) tuples. (Maybe: https://github.com/rlogiacco/CircularBuffer)
   //The future inMillis must then be modified by subtracting the current inMillis, so that it can be placed in the timeTilStart array when the current inMillis has passed and the magnet is turned on.
@@ -234,148 +630,10 @@ void movementAlgorithm(){
         //counter++;
       }
     }*/
-    if(frame == 1){
-      int t = 0;
-      int distanceBetween = 2;
-      turnMagnetOnIn(4,0,t+0,500);
-      turnMagnetOnIn(4,1,t+shortDelay,longDelay);
-      turnMagnetOnIn(4,2,t+shortDelay*2,longDelay);
-      turnMagnetOnIn(4,3,t+shortDelay*3,longDelay);
-      turnMagnetOnIn(4,4,t+shortDelay*4,timeBetweenRefreshes-(t+shortDelay*4));
-      t = shortDelay*distanceBetween;
-      turnMagnetOnIn(3,0,t+0,500);
-      turnMagnetOnIn(3,1,t+shortDelay,longDelay);
-      turnMagnetOnIn(3,2,t+shortDelay*2,longDelay);
-      turnMagnetOnIn(3,3,t+shortDelay*3,longDelay);
-      turnMagnetOnIn(3,4,t+shortDelay*4,timeBetweenRefreshes-(t+shortDelay*4));
-      t += shortDelay*distanceBetween;
-      turnMagnetOnIn(2,0,t+0,500);
-      turnMagnetOnIn(2,1,t+shortDelay,longDelay);
-      turnMagnetOnIn(2,2,t+shortDelay*2,longDelay);
-      turnMagnetOnIn(2,3,t+shortDelay*3,longDelay);
-      turnMagnetOnIn(2,4,t+shortDelay*4,timeBetweenRefreshes-(t+shortDelay*4));
-      t += shortDelay*distanceBetween;
-      turnMagnetOnIn(1,0,t+0,500);
-      turnMagnetOnIn(1,1,t+shortDelay,longDelay);
-      turnMagnetOnIn(1,2,t+shortDelay*2,longDelay);
-      turnMagnetOnIn(1,3,t+shortDelay*3,longDelay);
-      turnMagnetOnIn(1,4,t+shortDelay*4,timeBetweenRefreshes-(t+shortDelay*4));
-      t += shortDelay*distanceBetween;
-      turnMagnetOnIn(0,0,t+0,500);
-      turnMagnetOnIn(0,1,t+shortDelay,longDelay);
-      turnMagnetOnIn(0,2,t+shortDelay*2,longDelay);
-      turnMagnetOnIn(0,3,t+shortDelay*3,longDelay);
-      turnMagnetOnIn(0,4,t+shortDelay*4,timeBetweenRefreshes-(t+shortDelay*4));
+    //sefMovement()
+    heiMovement();
+    //hiMovement();
 
-      frame++;
-    }else if(frame == 2){
-      // Plot S
-      turnMagnetOnIn(1,0,0,timeBetweenRefreshes,45);
-      turnMagnetOnIn(2,0,0,timeBetweenRefreshes,45);
-      turnMagnetOnIn(3,0,0,timeBetweenRefreshes,45);
-
-      turnMagnetOnIn(3,1,0,timeBetweenRefreshes);
-
-      turnMagnetOnIn(1,2,0,timeBetweenRefreshes);
-      turnMagnetOnIn(2,2,0,timeBetweenRefreshes);
-      turnMagnetOnIn(3,2,0,timeBetweenRefreshes);
-
-      turnMagnetOnIn(1,3,0,timeBetweenRefreshes);
-
-      turnMagnetOnIn(1,4,0,timeBetweenRefreshes);
-      turnMagnetOnIn(2,4,0,timeBetweenRefreshes);
-      turnMagnetOnIn(3,4,0,timeBetweenRefreshes);
-
-      frame++;
-    }else if(frame == 3){
-      //plot E
-
-      turnMagnetOnIn(1,0,shortDelay,timeBetweenRefreshes-shortDelay,45);
-      turnMagnetOnIn(2,0,shortDelay,timeBetweenRefreshes-shortDelay,45);
-      turnMagnetOnIn(3,0,shortDelay,timeBetweenRefreshes-shortDelay,45);
-
-      turnMagnetOnIn(1,1,0,timeBetweenRefreshes);
-
-      turnMagnetOnIn(1,2,0,timeBetweenRefreshes,75);
-      turnMagnetOnIn(2,2,0,timeBetweenRefreshes);
-      turnMagnetOnIn(3,2,0,timeBetweenRefreshes);
-
-      turnMagnetOnIn(1,3,0,timeBetweenRefreshes);
-
-      turnMagnetOnIn(1,4,0,timeBetweenRefreshes);
-      turnMagnetOnIn(2,4,0,timeBetweenRefreshes);
-      turnMagnetOnIn(3,4,0,timeBetweenRefreshes);
-
-      frame++;
-    }else if(frame == 4){
-      //Plot F
-      //Row 0
-      turnMagnetOnIn(1,0,longDelay,timeBetweenRefreshes,45);
-      //turnMagnetOnIn(2,0,shortDelay,shortDelay);
-      //turnMagnetOnIn(3,0,0,longDelay);
-
-      //Row 1
-      turnMagnetOnIn(1,1,longDelay,timeBetweenRefreshes,75);
-      //turnMagnetOnIn(2,1,0,longDelay+shortDelay);
-      //turnMagnetOnIn(3,1,0,longDelay+shortDelay);
-      //Row 2
-      turnMagnetOnIn(1,2,shortDelay,timeBetweenRefreshes);
-      turnMagnetOnIn(2,2,0,timeBetweenRefreshes);
-      turnMagnetOnIn(3,2,0,timeBetweenRefreshes);
-      //Row 3
-      turnMagnetOnIn(1,3,0,timeBetweenRefreshes);
-      //Row 4
-      turnMagnetOnIn(1,4,0,timeBetweenRefreshes);
-      turnMagnetOnIn(2,4,0,timeBetweenRefreshes);
-      turnMagnetOnIn(3,4,0,timeBetweenRefreshes);
-
-      frame++;
-    } else if(frame == 5){
-      //Drag everything down
-      //Row 0
-      turnMagnetOnIn(1,0,0,shortDelay*5,45);
-      turnMagnetOnIn(2,0,0,shortDelay*5,45);
-      turnMagnetOnIn(3,0,0,shortDelay*5,45);
-
-      //Row 1
-      turnMagnetOnIn(1,1,0,shortDelay*4,75);
-      turnMagnetOnIn(2,1,0,shortDelay*4);
-      turnMagnetOnIn(3,1,0,shortDelay*4,75);
-      //Row 2
-      turnMagnetOnIn(1,2,0,shortDelay*3);
-      turnMagnetOnIn(2,2,0,shortDelay*3);
-      turnMagnetOnIn(3,2,0,shortDelay*3);
-      //Row 3
-      turnMagnetOnIn(1,3,0,shortDelay*2);
-      turnMagnetOnIn(2,3,0,shortDelay*2);
-      turnMagnetOnIn(3,3,0,shortDelay*2);
-      //Row 4
-      turnMagnetOnIn(1,4,0,shortDelay);
-      turnMagnetOnIn(2,4,0,shortDelay);
-      turnMagnetOnIn(3,4,0,shortDelay);
-
-      frame++;
-    }    else{
-
-
-
-      frame = 1;
-    }
-
-    /*
-    turnMagnetOnIn(1,4,shortDelay*5,longDelay);
-    turnMagnetOnIn(2,4,shortDelay*6,longDelay);
-    turnMagnetOnIn(3,4,shortDelay*7,longDelay);
-    turnMagnetOnIn(4,4,shortDelay*8,longDelay);
-    turnMagnetOnIn(4,3,shortDelay*9,longDelay);
-    turnMagnetOnIn(4,2,shortDelay*10,longDelay);
-    turnMagnetOnIn(4,1,shortDelay*11,longDelay);
-    turnMagnetOnIn(3,1,shortDelay*12,longDelay);
-    turnMagnetOnIn(2,1,shortDelay*13,longDelay);
-    turnMagnetOnIn(1,1,shortDelay*14,longDelay);
-    */
-    //turnMagnetOnIn(1,0,shortDelay*15,longDelay);
-    //turnMagnetOnIn(2,5,0,longDelay);
 
 
     timeForNewRefresh += timeBetweenRefreshes; //Theoretically the same as timeThisRefresh+timeBetweenRefreshes, but in case a turn(ms) is skipped for some reason this will be more accurate.
