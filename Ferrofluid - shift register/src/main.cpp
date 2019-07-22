@@ -24,7 +24,7 @@ const int SHIFT_DATA_PINS[] = {15, 22, 23, 9, 10, 13, 11, 12, 35, 36, 37, 38}; /
 //holders for infromation you're going to pass to shifting function
 const int ALL_ROWS = 10; //The total number of rows in the actual hardware
 const int ALL_COLS = 19; //The total number of columns in the actual hardware
-const int ROWS = 8;// 5;//10;//12 //The number of rows that are in use in the current program (different from ALL_ROWS in order to scale down the number of bits shifted out)
+const int ROWS = 10;// 5;//10;//12 //The number of rows that are in use in the current program (different from ALL_ROWS in order to scale down the number of bits shifted out)
 const int COLS = 19; // 5;//19;//21 //The number of cols that are in use in the current program (different from ALL_COLS in order to scale down the number of bits shifted out)
 
 const int REGISTERS = ROWS; // no of register series (indicating no of magnet-driver-PCBs connected to the Arduino)
@@ -700,7 +700,7 @@ void tMovement(){
 
     //turnMagnetOnIn(0,2,0,timeBetweenRefreshes,95);
     //turnMagnetOnIn(1,2,0,timeBetweenRefreshes);
-    turnMagnetOnIn(2,2,0,timeBetweenRefreshes,50);
+    turnMagnetOnIn(2,2,0,timeBetweenRefreshes,60);
     //turnMagnetOnIn(4,2,0,timeBetweenRefreshes);
 
     //turnMagnetOnIn(0,3,0,timeBetweenRefreshes);
