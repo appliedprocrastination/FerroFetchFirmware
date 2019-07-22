@@ -1,6 +1,6 @@
 #include <Arduino.h>
 
-#define SHIFT_INDICATOR_PIN 50
+#define SHIFT_INDICATOR_PIN 32
 
 const bool DEBUG = false;
 int counter = 0;                //debugvariabler
@@ -12,16 +12,17 @@ const int SHIFT_ENABLE_PINS[] = {3,6,9,12,15,18,21,24,27,30};   //RCLK, NOTE: th
 ////Pin connected to SER of SN74HC595
 //const int SHIFT_DATA_PINS[] = {4,7,10,13,16,19,22,25,28,31};    //SER, NOTE: the variable "ALL_ROWS" will change how many of these pinsare initiated
 
-//#define PORTA_ADR 0x02
+
 
 const int SHIFT_CLK_PIN = 2; //SRCLK, NOTE: the variable "ALL_ROWS" will change how many of these pinsare initiated
 //Pin connected to RCLK of SN74HC595
 const int SHIFT_ENABLE_PIN = 3; //RCLK, NOTE: the variable "ALL_ROWS" will change how many of these pinsare initiated
 ////Pin connected to SER of SN74HC595
-const int SHIFT_DATA_PINS[] = {22, 23, 24, 25, 26, 27, 28, 29}; //SER, NOTE: the variable "ALL_ROWS" will change how many of these pinsare initiated
+//const int SHIFT_DATA_PINS_MEGA[] = {22, 23, 24, 25, 26, 27, 28, 29}; //SER, NOTE: the variable "ALL_ROWS" will change how many of these pinsare initiated
+const int SHIFT_DATA_PINS[] = {15, 22, 23, 9, 10, 13, 11, 12, 35, 36, 37, 38}; //SER, NOTE: the variable "ALL_ROWS" will change how many of these pinsare initiated
 
 //holders for infromation you're going to pass to shifting function
-const int ALL_ROWS = 8; //The total number of rows in the actual hardware
+const int ALL_ROWS = 10; //The total number of rows in the actual hardware
 const int ALL_COLS = 19; //The total number of columns in the actual hardware
 const int ROWS = 8;// 5;//10;//12 //The number of rows that are in use in the current program (different from ALL_ROWS in order to scale down the number of bits shifted out)
 const int COLS = 19; // 5;//19;//21 //The number of cols that are in use in the current program (different from ALL_COLS in order to scale down the number of bits shifted out)
@@ -51,8 +52,8 @@ enum MagState{OFF, ON};
 MagState prevMagnetState[COLS][ROWS];
 MagState currMagnetState[COLS][ROWS];
 
-uint8_t prevMagnetState_reg_based[COLS];
-uint8_t currMagnetState_reg_based[COLS];
+uint32_t prevMagnetState_reg_based[COLS];
+uint32_t currMagnetState_reg_based[COLS];
 
 //Function headers:
 void turnMagnetOnIn(int x, int y, int inMillis, int forMillis, uint8_t uptime=100); //Uptime in percent
@@ -261,7 +262,7 @@ void shiftOut_one_PCB_per_PORT(void)
 
   //clear everything out just in case to
   //prepare shift register for bit shifting
-  PORTA = 0;//digitalWrite(SHIFT_DATA_PINS[y], LOW);
+  GPIOC_PDOR = 0;//digitalWrite(SHIFT_DATA_PINS[y], LOW);
   digitalWrite(SHIFT_CLK_PIN, LOW);
 
   //Write out the ROWS*COLS first values:
@@ -271,14 +272,14 @@ void shiftOut_one_PCB_per_PORT(void)
     digitalWrite(SHIFT_CLK_PIN, LOW);
     //Sets the pin to HIGH or LOW depending on pinState
 
-    PORTA = currMagnetState_reg_based[x];
+    GPIOC_PDOR = currMagnetState_reg_based[x];
 
     updateTimeAtStart_reg_based(x);
 
     //register shifts bits on upstroke of clock pin
     digitalWrite(SHIFT_CLK_PIN, HIGH);
     //zero the data pin after shift to prevent bleed through
-    PORTA = 0;//digitalWrite(SHIFT_DATA_PIN, LOW);
+    GPIOC_PDOR = 0; //digitalWrite(SHIFT_DATA_PIN, LOW);
   }
   # if (DEBUG && timeThisRefresh >= timeForNewRefresh)
     Serial.println();
@@ -699,7 +700,7 @@ void tMovement(){
 
     //turnMagnetOnIn(0,2,0,timeBetweenRefreshes,95);
     //turnMagnetOnIn(1,2,0,timeBetweenRefreshes);
-    turnMagnetOnIn(2,2,0,timeBetweenRefreshes,45);
+    turnMagnetOnIn(2,2,0,timeBetweenRefreshes,50);
     //turnMagnetOnIn(4,2,0,timeBetweenRefreshes);
 
     //turnMagnetOnIn(0,3,0,timeBetweenRefreshes);
