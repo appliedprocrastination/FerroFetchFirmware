@@ -6,16 +6,22 @@ const bool DEBUG = false;
 int counter = 0;                //debugvariabler
 unsigned long startTime = 0;    //debugvariabler
 //Pin connected to SRCLK of SN74HC595
-int shiftClkPins[] = {2,5,8,11,14,17,20,23,26,29};      //SRCLK, NOTE: the variable "ALL_ROWS" will change how many of these pinsare initiated
+const int SHIFT_CLK_PINS[] = {2,5,8,11,14,17,20,23,26,29};      //SRCLK, NOTE: the variable "ALL_ROWS" will change how many of these pinsare initiated
 //Pin connected to RCLK of SN74HC595
-int shiftEnablePins[] = {3,6,9,12,15,18,21,24,27,30};   //RCLK, NOTE: the variable "ALL_ROWS" will change how many of these pinsare initiated
+const int SHIFT_ENABLE_PINS[] = {3,6,9,12,15,18,21,24,27,30};   //RCLK, NOTE: the variable "ALL_ROWS" will change how many of these pinsare initiated
 ////Pin connected to SER of SN74HC595
-int shiftDataPins[] = {4,7,10,13,16,19,22,25,28,31};    //SER, NOTE: the variable "ALL_ROWS" will change how many of these pinsare initiated
+//const int SHIFT_DATA_PINS[] = {4,7,10,13,16,19,22,25,28,31};    //SER, NOTE: the variable "ALL_ROWS" will change how many of these pinsare initiated
 
+//#define PORTA_ADR 0x02
 
+const int SHIFT_CLK_PIN = 2; //SRCLK, NOTE: the variable "ALL_ROWS" will change how many of these pinsare initiated
+//Pin connected to RCLK of SN74HC595
+const int SHIFT_ENABLE_PIN = 3; //RCLK, NOTE: the variable "ALL_ROWS" will change how many of these pinsare initiated
+////Pin connected to SER of SN74HC595
+const int SHIFT_DATA_PINS[] = {22, 23, 24, 25, 26, 27, 28, 29}; //SER, NOTE: the variable "ALL_ROWS" will change how many of these pinsare initiated
 
 //holders for infromation you're going to pass to shifting function
-const int ALL_ROWS = 10; //The total number of rows in the actual hardware
+const int ALL_ROWS = 8; //The total number of rows in the actual hardware
 const int ALL_COLS = 19; //The total number of columns in the actual hardware
 const int ROWS = 8;// 5;//10;//12 //The number of rows that are in use in the current program (different from ALL_ROWS in order to scale down the number of bits shifted out)
 const int COLS = 19; // 5;//19;//21 //The number of cols that are in use in the current program (different from ALL_COLS in order to scale down the number of bits shifted out)
@@ -31,9 +37,9 @@ unsigned long timeThisRefresh = 0;
 unsigned long timeForNewRefresh = 0;
 
 //Other movement related variables
-uint8_t dutyCycle[COLS][ROWS]; //Probably not needed, just creating it to remember thinking more about it later
+uint8_t dutyCycle[COLS][ROWS]; 
 uint8_t dutyCycleCounter = 0;
-uint8_t dutyCycleResolution = 20;
+uint8_t dutyCycleResolution = 20; //resolution 20 gir 5% increments, resolution 10 gir 10% increments
 int shortDelay = 500; //ms
 int longDelay = 1000; //ms
 unsigned long timeBetweenRefreshes = 6000;//12*shortDelay; //ms
@@ -45,13 +51,26 @@ enum MagState{OFF, ON};
 MagState prevMagnetState[COLS][ROWS];
 MagState currMagnetState[COLS][ROWS];
 
+uint8_t prevMagnetState_reg_based[COLS];
+uint8_t currMagnetState_reg_based[COLS];
+
 //Function headers:
 void turnMagnetOnIn(int x, int y, int inMillis, int forMillis, uint8_t uptime=100); //Uptime in percent
 void turnMagnetsOnIn(int* xArr, int y,int xLength, int inMillis, int forMillis, uint8_t uptime=100); //Uptime in percent
 
 //Functions:
-boolean magnetIsToggledThisIteration(int x, int y){
-  if(prevMagnetState[x][y] == OFF && currMagnetState[x][y] == ON){
+boolean magnetIsToggledThisIteration(int x, int y)
+{
+  if (prevMagnetState[x][y] == OFF && currMagnetState[x][y] == ON)
+  {
+    return true;
+  }
+  return false;
+}
+boolean magnetIsToggledThisFrame_reg_based(int x, int y)
+{
+  if (prevMagnetState_reg_based[x] & (1 << y) == 0 && currMagnetState_reg_based[x] & (1 << y) == 1)
+  {
     return true;
   }
   return false;
@@ -62,15 +81,26 @@ void updateTimeAtStart(int x, int y){
     timeAtStart[x][y] = timeThisRefresh;
   }
 }
-
+void updateTimeAtStart_reg_based(int x)
+{
+  for (size_t y = 0; y < COLS; y++)
+  {
+    if (magnetIsToggledThisFrame_reg_based(x,y))
+    {
+      timeAtStart[x][y] = timeThisRefresh;
+    }
+  }
+  
+}
+/*
 void updateAllStates(){
   for (int x = 0; x < COLS; x++) {
     for (int y = 0; y < ROWS; y++) {
       if(timeTilStart[x][y] <= timeThisRefresh && timeAtEnd[x][y]>timeThisRefresh){
         currMagnetState[x][y] = ON;
-
+        
         if(dutyCycle[x][y] < dutyCycleCounter){
-          currMagnetState[x][y] = OFF;
+          currMagnetState[x][y] = OFF; 
         }
 
         if(DEBUG && false){ //Using &&false when I don't want this output
@@ -83,7 +113,6 @@ void updateAllStates(){
 
       }else if (timeAtEnd[x][y] <= timeThisRefresh ) {
         currMagnetState[x][y] = OFF; //unnecessary? These are turned OFF in movementAlgorithm()
-
       } else {
 
       }
@@ -91,6 +120,36 @@ void updateAllStates(){
   }
   dutyCycleCounter++;
   if(dutyCycleCounter>=dutyCycleResolution) dutyCycleCounter=0;
+}*/
+
+void updateAllStates_reg_based()
+{
+  for (int x = 0; x < COLS; x++)
+  {
+    currMagnetState_reg_based[x] = 0;
+    for (int y = 0; y < ROWS; y++)
+    {
+      if (timeTilStart[x][y] <= timeThisRefresh && timeAtEnd[x][y] > timeThisRefresh)
+      {
+        if(dutyCycle[x][y] > dutyCycleCounter){
+          currMagnetState_reg_based[x] |= 1 << y;
+        }
+
+        #if (DEBUG && false)
+         //Using &&false when I don't want this output
+          Serial.print("Magnet (");
+          Serial.print(x);
+          Serial.print(",");
+          Serial.print(y);
+          Serial.println(") will turn ON this iteration: ");
+        #endif
+      }
+
+    }
+  }
+  dutyCycleCounter++;
+  if (dutyCycleCounter >= dutyCycleResolution)
+    dutyCycleCounter = 0;
 }
 
 void shiftOut(int registerIndex){
@@ -105,33 +164,33 @@ void shiftOut(int registerIndex){
   int y = registerIndex;
   //clear everything out just in case to
   //prepare shift register for bit shifting
-  digitalWrite(shiftDataPins[registerIndex], LOW);
-  digitalWrite(shiftClkPins[registerIndex], LOW);
+  digitalWrite(SHIFT_DATA_PINS[registerIndex], LOW);
+  digitalWrite(SHIFT_CLK_PINS[registerIndex], LOW);
   //Write out the COLS = 21 first values:
   for(x=0; x<COLS; x++){
-    digitalWrite(shiftClkPins[registerIndex], LOW);
+    digitalWrite(SHIFT_CLK_PINS[registerIndex], LOW);
 
     //Sets the pin to HIGH or LOW depending on pinState
-    digitalWrite(shiftDataPins[registerIndex], currMagnetState[x][y]);
+    digitalWrite(SHIFT_DATA_PINS[registerIndex], currMagnetState[x][y]);
     updateTimeAtStart(x,y);
     //register shifts bits on upstroke of clock pin
-    digitalWrite(shiftClkPins[registerIndex], HIGH);
+    digitalWrite(SHIFT_CLK_PINS[registerIndex], HIGH);
     //zero the data pin after shift to prevent bleed through
-    digitalWrite(shiftDataPins[registerIndex], LOW);
+    digitalWrite(SHIFT_DATA_PINS[registerIndex], LOW);
   }
   //Write out the remaining bits:
   y = 0; //TODO: Translate this when decided
   for(x = COLS; x<(8*BYTES_PER_REGISTER); x++){
       //Translate pattern for remaining bits
-      digitalWrite(shiftClkPins[registerIndex], LOW);
+      digitalWrite(SHIFT_CLK_PINS[registerIndex], LOW);
 
-      digitalWrite(shiftDataPins[registerIndex], 0); //TODO: This is temporarily ignored magnetState needs to be set
+      digitalWrite(SHIFT_DATA_PINS[registerIndex], 0); //TODO: This is temporarily ignored magnetState needs to be set
       updateTimeAtStart(x,y);
-      digitalWrite(shiftClkPins[registerIndex], HIGH);
-      digitalWrite(shiftDataPins[registerIndex], LOW);
+      digitalWrite(SHIFT_CLK_PINS[registerIndex], HIGH);
+      digitalWrite(SHIFT_DATA_PINS[registerIndex], LOW);
   }
     //stop shifting
-    digitalWrite(shiftClkPins[registerIndex], LOW);
+    digitalWrite(SHIFT_CLK_PINS[registerIndex], LOW);
 }
 
 void shiftOut_one_PCB_per_row(int registerIndex){
@@ -151,36 +210,81 @@ void shiftOut_one_PCB_per_row(int registerIndex){
 
   //clear everything out just in case to
   //prepare shift register for bit shifting
-  digitalWrite(shiftDataPins[registerIndex], LOW);
-  digitalWrite(shiftClkPins[registerIndex], LOW);
+  digitalWrite(SHIFT_DATA_PINS[registerIndex], LOW);
+  digitalWrite(SHIFT_CLK_PINS[registerIndex], LOW);
 
   //Write out the ROWS*COLS first values:
   for(x=COLS-1; x>=0; x--){
       //NOTE: The first thing written will be pushed to the very end of the register.
-      digitalWrite(shiftClkPins[registerIndex], LOW);
+      digitalWrite(SHIFT_CLK_PINS[registerIndex], LOW);
       //Sets the pin to HIGH or LOW depending on pinState
 
-      digitalWrite(shiftDataPins[registerIndex], currMagnetState[x][y]);
-      if(DEBUG && timeThisRefresh >= timeForNewRefresh){
+      digitalWrite(SHIFT_DATA_PINS[registerIndex], currMagnetState[x][y]);
+      #if(DEBUG && timeThisRefresh >= timeForNewRefresh)
         Serial.print("\t(");
         Serial.print(x);
         Serial.print(",");
         Serial.print(y);
         Serial.print(") = ");
         Serial.print(currMagnetState[x][y]);
-      }
+      #endif
 
       updateTimeAtStart(x,y);
 
       //register shifts bits on upstroke of clock pin
-      digitalWrite(shiftClkPins[registerIndex], HIGH);
+      digitalWrite(SHIFT_CLK_PINS[registerIndex], HIGH);
       //zero the data pin after shift to prevent bleed through
-      digitalWrite(shiftDataPins[registerIndex], LOW);
+      digitalWrite(SHIFT_DATA_PINS[registerIndex], LOW);
     }
-    if(DEBUG && timeThisRefresh >= timeForNewRefresh)Serial.println();
+    #if (DEBUG && timeThisRefresh >= timeForNewRefresh)
+      Serial.println();
+    #endif
 
   //stop shifting
-  digitalWrite(shiftClkPins[registerIndex], LOW);
+  digitalWrite(SHIFT_CLK_PINS[registerIndex], LOW);
+}
+
+void shiftOut_one_PCB_per_PORT(void)
+{
+  // This function does the same job as shiftOut() except that it doesnt have a special case routine for handling the two leftover rows that exist in the planned 12x23 matrix with 10 driver-PCBs
+  // This function is intended for smaller matrices (like the prototype, which has 5x6 magnets), where there are several rows controlled by the same PCB
+
+  //This shifts (COLS*ROWS) bits out to the register at registerIndex,
+  //on the rising edge of the clock,
+  //clock idles low
+
+  //Register-index must be translated to display-coordinates:
+  //The following algorithm assumes that the magnets are connected row by row, meaning that
+  //The n=[0,...,COLS)      first bits corresponds to row[0],
+  //The n=[COLS,...,2*COLS) first bits corresponds to row[1], etc.
+  int x;
+
+  //clear everything out just in case to
+  //prepare shift register for bit shifting
+  PORTA = 0;//digitalWrite(SHIFT_DATA_PINS[y], LOW);
+  digitalWrite(SHIFT_CLK_PIN, LOW);
+
+  //Write out the ROWS*COLS first values:
+  for (x = COLS - 1; x >= 0; x--)
+  {
+    //NOTE: The first thing written will be pushed to the very end of the register.
+    digitalWrite(SHIFT_CLK_PIN, LOW);
+    //Sets the pin to HIGH or LOW depending on pinState
+
+    PORTA = currMagnetState_reg_based[x];
+
+    updateTimeAtStart_reg_based(x);
+
+    //register shifts bits on upstroke of clock pin
+    digitalWrite(SHIFT_CLK_PIN, HIGH);
+    //zero the data pin after shift to prevent bleed through
+    PORTA = 0;//digitalWrite(SHIFT_DATA_PIN, LOW);
+  }
+  # if (DEBUG && timeThisRefresh >= timeForNewRefresh)
+    Serial.println();
+  #endif
+  //stop shifting
+  digitalWrite(SHIFT_CLK_PIN, LOW);
 }
 
 void shiftOut_zeros_to_full_screen(void)
@@ -195,8 +299,8 @@ void shiftOut_zeros_to_full_screen(void)
   //prepare shift register for bit shifting
   for (int registerIndex = 0; registerIndex < ALL_ROWS; registerIndex++)
   {
-    digitalWrite(shiftDataPins[registerIndex], LOW);
-    digitalWrite(shiftClkPins[registerIndex], LOW);
+    digitalWrite(SHIFT_DATA_PINS[registerIndex], LOW);
+    digitalWrite(SHIFT_CLK_PINS[registerIndex], LOW);
 
     //Write out the ROWS*COLS first values:
     for ( y = ALL_ROWS - 1; y >= 0; y--)
@@ -204,25 +308,25 @@ void shiftOut_zeros_to_full_screen(void)
       for (x = ALL_COLS - 1; x >= 0; x--)
       {
         //NOTE: The first thing written will be pushed to the very end of the register.
-        digitalWrite(shiftClkPins[registerIndex], LOW);
+        digitalWrite(SHIFT_CLK_PINS[registerIndex], LOW);
         //Sets the pin to HIGH or LOW depending on pinState
 
-        digitalWrite(shiftDataPins[registerIndex], 0);
+        digitalWrite(SHIFT_DATA_PINS[registerIndex], 0);
 
         //updateTimeAtStart(x, y);
 
         //register shifts bits on upstroke of clock pin
-        digitalWrite(shiftClkPins[registerIndex], HIGH);
+        digitalWrite(SHIFT_CLK_PINS[registerIndex], HIGH);
         //zero the data pin after shift to prevent bleed through
-        digitalWrite(shiftDataPins[registerIndex], LOW);
+        digitalWrite(SHIFT_DATA_PINS[registerIndex], LOW);
       }
     }
     //stop shifting
-    digitalWrite(shiftClkPins[registerIndex], LOW);
+    digitalWrite(SHIFT_CLK_PINS[registerIndex], LOW);
   }
   
 }
-
+/*
 void refreshScreen(){
   updateAllStates();
 
@@ -233,18 +337,41 @@ void refreshScreen(){
 
   for(int reg = 0; reg < REGISTERS; reg++){
     //ground latchPin and hold low for as long as you are transmitting
-    digitalWrite(shiftEnablePins[reg], LOW);
+    digitalWrite(SHIFT_ENABLE_PINS[reg], LOW);
     //move 'em out
     //shiftOut()
     shiftOut_one_PCB_per_row(reg);
     //return the latch pin high to signal chip that it
     //no longer needs to listen for information
-    digitalWrite(shiftEnablePins[reg], HIGH);
+    digitalWrite(SHIFT_ENABLE_PINS[reg], HIGH);
   }
   
   //Indicate to logic analyzer that the shift is done
   digitalWrite(SHIFT_INDICATOR_PIN, LOW);
 
+}*/
+
+void refreshScreen_reg_based()
+{
+  updateAllStates_reg_based();
+
+  //indicate to logic analyzer that the shift is starting
+  //(The latch pin could be used to achieve this functionality,
+  //but the current version of the software latches through each register separately )
+  digitalWrite(SHIFT_INDICATOR_PIN, HIGH);
+
+  //ground latchPin and hold low for as long as you are transmitting
+  digitalWrite(SHIFT_ENABLE_PIN, LOW);
+  //move 'em out
+  //shiftOut()
+  shiftOut_one_PCB_per_PORT();
+  //return the latch pin high to signal chip that it
+  //no longer needs to listen for information
+  digitalWrite(SHIFT_ENABLE_PIN, HIGH);
+
+
+  //Indicate to logic analyzer that the shift is done
+  digitalWrite(SHIFT_INDICATOR_PIN, LOW);
 }
 
 void sefMovement(){
@@ -1154,7 +1281,7 @@ void turnMagnetsOnIn(int* xArr, int y, int xLength, int inMillis, int forMillis,
     timeAtEnd[x][y] = timeThisRefresh + inMillis + forMillis; //Equal to: timeTilStart+forMillis
     if(uptime > 100) uptime = 100;
       dutyCycle[x][y] = (uint8_t)((uptime / 100.0) * (dutyCycleResolution-1));
-    if(DEBUG && false){ //Using &&false when I don't want this output
+    # if(DEBUG && false) //Using &&false when I don't want this output
       Serial.print("Magnet (");
       Serial.print(x);
       Serial.print(",");
@@ -1165,7 +1292,7 @@ void turnMagnetsOnIn(int* xArr, int y, int xLength, int inMillis, int forMillis,
       Serial.print(timeAtEnd[x][y]);
       Serial.print("ms. Current time (ms): ");
       Serial.println(timeThisRefresh);
-    }
+    #endif
   }
 }
 
@@ -1177,8 +1304,8 @@ void turnMagnetOnIn(int x, int y, int inMillis, int forMillis, uint8_t uptime){
   timeTilStart[x][y] = timeThisRefresh + inMillis;
   timeAtEnd[x][y] = timeThisRefresh + inMillis + forMillis; //Equal to: timeTilStart+forMillis
   if(uptime > 100) uptime = 100;
-  dutyCycle[x][y] = (uint8_t)((uptime / 100.0) * (dutyCycleResolution-1));
-  if(DEBUG && false){ //Using &&false when I don't want this output
+  dutyCycle[x][y] = (uint8_t)((uptime / 100.0f) * (dutyCycleResolution));
+  # if(DEBUG && false) //Using &&false when I don't want this output
     Serial.print("Magnet (");
     Serial.print(x);
     Serial.print(",");
@@ -1189,17 +1316,16 @@ void turnMagnetOnIn(int x, int y, int inMillis, int forMillis, uint8_t uptime){
     Serial.print(timeAtEnd[x][y]);
     Serial.print("ms. Current time (ms): ");
     Serial.println(timeThisRefresh);
-
-  }
+  #endif
 }
 
 void movementAlgorithm(){
-  if (DEBUG && false){
+  #if (DEBUG && false)
     Serial.print("timeThisRefresh: ");
     Serial.println(timeThisRefresh);
     Serial.print("timeForNewRefresh: ");
     Serial.println(timeForNewRefresh);
-  }
+  #endif
   if(timeThisRefresh >= timeForNewRefresh){
 
   /*  for(int x = 0; x < COLS; x++){
@@ -1226,23 +1352,26 @@ void setup() {
 
   Serial.println("Serial initiated");
 
-  //MagnetMatrix mmx = MagnetMatrix(shiftEnablePins,shiftClkPins,shiftDataPins,REGISTERS);
+  //MagnetMatrix mmx = MagnetMatrix(SHIFT_ENABLE_PINS,SHIFT_CLK_PINS,SHIFT_DATA_PINS,REGISTERS);
   //mmx.printPinValues();
 
   //set pins to output because they are addressed in the main loop
   pinMode(SHIFT_INDICATOR_PIN,OUTPUT);
   digitalWrite(SHIFT_INDICATOR_PIN,LOW);
-  for (int i = 0; i < ALL_ROWS; i++)
-  { //(sizeof(shiftEnablePins) / sizeof(shiftEnablePins[0]))
-    pinMode(shiftEnablePins[i],OUTPUT);
+  /* for (int i = 0; i < ALL_ROWS; i++)
+  { //(sizeof(SHIFT_ENABLE_PINS) / sizeof(SHIFT_ENABLE_PINS[0]))
+    pinMode(SHIFT_ENABLE_PINS[i],OUTPUT);
   }
   for (int i = 0; i < ALL_ROWS; i++)
   {
-    pinMode(shiftClkPins[i],OUTPUT);
+    pinMode(SHIFT_CLK_PINS[i],OUTPUT);
   }
+  */
+  pinMode(SHIFT_CLK_PIN,OUTPUT);
+  pinMode(SHIFT_ENABLE_PIN,OUTPUT);
   for (int i = 0; i < ALL_ROWS; i++)
   {
-    pinMode(shiftDataPins[i],OUTPUT);
+    pinMode(SHIFT_DATA_PINS[i],OUTPUT);
   }
   for(int x=0; x<COLS; x++){
     for(int y=0;y<ROWS;y++){
@@ -1265,13 +1394,13 @@ void loop(){
   unsigned long ms = millis();
   timeThisRefresh = ms;
   movementAlgorithm();
-  refreshScreen();
+  refreshScreen_reg_based();
   for(int x=0;x<COLS;x++){
-    for(int y=0;y<ROWS;y++){
-      prevMagnetState[x][y] = currMagnetState[x][y];
-    }
+    //for(int y=0;y<ROWS;y++){
+    prevMagnetState_reg_based[x] = currMagnetState_reg_based[x];
+    //}
   }
-  if(DEBUG){
+  #if(DEBUG)
     if(counter >= 1000){
 
       //Test1:
@@ -1295,6 +1424,6 @@ void loop(){
     }else{
       counter++;
     }
-  }
+  #endif
 
 }
