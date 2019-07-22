@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <arm_math.h>
 
 #define SHIFT_INDICATOR_PIN 32
 
