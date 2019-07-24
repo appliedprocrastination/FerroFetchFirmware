@@ -1,11 +1,19 @@
 #include <Arduino.h>
 #include <arm_math.h>
 
+#include <Animation.h>
+
 #define SHIFT_INDICATOR_PIN 32
 
 const bool DEBUG = false;
 int counter = 0;                //debugvariables
 unsigned long startTime = 0;    //debugvariables
+
+//PRELOADED_ANIMATION:  The entire animation is written into memory before the program is compiled
+//DYNAMIC_ANIMATION:    The animation can be changed/updated dynamically, but is based on a fixed framerate
+//ASYNC_ANIMATION:      The animation is independent of the framerate and a pixel can be set at any given time.
+enum AnimationMode{PRELOADED_ANIMATION, DYNAMIC_ANIMATION, ASYNC_ANIMATION};
+AnimationMode mode = PRELOADED_ANIMATION;
 
 //Pin connected to SRCLK of SN74HC595
 const int SHIFT_CLK_PIN = 2; //SRCLK
@@ -31,7 +39,7 @@ unsigned long timeThisRefresh = 0;
 unsigned long timeForNewRefresh = 0;
 
 //Other movement related variables
-uint8_t dutyCycle[COLS][ROWS]; 
+uint8_t dutyCycle[COLS][ROWS];
 uint8_t dutyCycleCounter = 0;
 uint8_t dutyCycleResolution = 20; //resolution 20 yields 5% increments, resolution 10 yields 10% increments
 int shortDelay = 500; //ms
@@ -39,10 +47,29 @@ int longDelay = 1000; //ms
 unsigned long timeBetweenRefreshes = 6000;//12*shortDelay; //ms
 
 int frame = 1;
+//const int preloaded_anim_num_frames = 10; //only to be used in the preloaded animation mode 
+bool animation_is_preloaded = false;
 
 //States
 uint32_t prevMagnetState_reg_based[COLS];
 uint32_t currMagnetState_reg_based[COLS];
+
+/*const uint32_t preloaded_animation[preloaded_anim_num_frames][COLS] = {
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0b1, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0b11, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0b10, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0b110, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0b100, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0b110, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0b10, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0b11, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0b1, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+};*/
+//uint32_t dynamic_animation;
+uint32_t mag_state_this_frame[COLS]; //This state array contains the "on"/"off" state of a magnet as how it's supposed to stay through the frame. If the pixel has PWM enabled it will be toggled in the "shift_out_mag_state" array corresponding to it's duty cycle
+uint32_t shift_out_mag_state[COLS];  //This state array is used to implement PWM by keeping track of duty cycle 
+
 
 //Function headers:
 void turnMagnetOnIn(int x, int y, int inMillis, int forMillis, uint8_t uptime=100); //Uptime in percent
