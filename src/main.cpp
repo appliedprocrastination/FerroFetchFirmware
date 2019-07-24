@@ -78,7 +78,7 @@ void turnMagnetsOnIn(int* xArr, int y,int xLength, int inMillis, int forMillis, 
 //Functions:
 boolean magnetIsToggledThisFrame_reg_based(int x, int y)
 {
-  if (prevMagnetState_reg_based[x] & (1 << y) == 0 && currMagnetState_reg_based[x] & (1 << y) == 1)
+  if ( (prevMagnetState_reg_based[x] & (1 << y) ) == 0 && ( currMagnetState_reg_based[x] & (1 << y) ) == 1)
   {
     return true;
   }
@@ -300,7 +300,7 @@ void turnMagnetsOnIn(int* xArr, int y, int xLength, int inMillis, int forMillis,
   //The future inMillis must then be modified by subtracting the current inMillis, so that it can be placed in the timeTilStart array when the current inMillis has passed and the magnet is turned on.
   //There also needs to be a check that the future inMillis will happen AFTER the current inMillis+current forMillis, so that the magnet has a pause of at least shortDelay (this minimum delay is a guess).
   int x;
-  for (size_t i = 0; i < xLength; i++) {
+  for (int i = 0; i < xLength; i++) {
     x = xArr[i];
     timeTilStart[x][y] = timeThisRefresh + inMillis;
     timeAtEnd[x][y] = timeThisRefresh + inMillis + forMillis; //Equal to: timeTilStart+forMillis

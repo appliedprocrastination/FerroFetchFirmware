@@ -1,7 +1,7 @@
 #include "Animation.h"
 
 //Constructor
-Frame::Frame(int cols, int rows, uint8_t **duty_cycle, uint32_t *animation)
+Frame::Frame(int cols, int rows, uint8_t **duty_cycle, uint32_t *picture)
 {
     _cols = cols;
     _rows = rows;
@@ -19,13 +19,13 @@ Frame::Frame(int cols, int rows, uint8_t **duty_cycle, uint32_t *animation)
         _duty_cycle = duty_cycle;
     }
 
-    if (animation == nullptr)
+    if (picture == nullptr)
     {
-        _animation = new uint32_t[cols];
+        _picture = new uint32_t[cols];
     }
     else
     {
-        _animation = animation;
+        _picture = picture;
     }
 }
 
@@ -33,15 +33,15 @@ Frame::Frame(int cols, int rows, uint8_t **duty_cycle, uint32_t *animation)
 void Frame::delete_frame(void)
 {
     _delete_duty_cycle();
-    _delete_animation();
+    _delete_picture();
 }
-uint32_t *Frame::get_animation()
+uint32_t *Frame::get_picture()
 {
-    return _animation;
+    return _picture;
 }
-uint32_t Frame::get_animation_at(int x)
+uint32_t Frame::get_picture_at(int x)
 {
-    return _animation[x];
+    return _picture[x];
 }
 uint8_t **Frame::get_duty_cycle()
 {
@@ -51,10 +51,10 @@ uint8_t Frame::get_duty_cycle_at(int x, int y)
 {
     return _duty_cycle[x][y];
 }
-inline void Frame::write_animation(uint32_t* animation)
+inline void Frame::write_picture(uint32_t* picture)
 {
-    _delete_animation();
-    _animation = animation;
+    _delete_picture();
+    _picture = picture;
 }
 
 inline void Frame::write_pixel(int x, int y, bool state)
@@ -69,17 +69,17 @@ inline void Frame::write_pixel(int x, int y, bool state)
 }
 inline void Frame::set_pixel(int x, int y)
 {
-    _animation[x] |= 1 << y;
+    _picture[x] |= 1 << y;
 }
 inline void Frame::clear_pixel(int x, int y)
 {
-    _animation[x] &= ~(1 << y);
+    _picture[x] &= ~(1 << y);
 }
 
 // Private Methods
-inline void Frame::_delete_animation()
+inline void Frame::_delete_picture()
 {
-    delete _animation;
+    delete _picture;
 }
 
 inline void Frame::_delete_duty_cycle()
@@ -97,6 +97,7 @@ Animation::Animation(int num_frames, int cols, int rows, Frame **frames)
     _num_frames = num_frames;
     _cols = cols;
     _rows = rows;
+    _current_frame = 0;
 
     if(frames == nullptr){
         _frames = new Frame*[num_frames];
@@ -130,6 +131,43 @@ void Animation::delete_anim(void)
     delete _frames;
 
 }
-
+void Animation::goto_next_frame(){
+    _current_frame = _get_next_frame_idx();
+    //TODO: implement a "looping_anim" variable
+    //if loop=false return enum "ANIM_DONE" when _current_frame == 0
+    //this can be built on in the main program
+    //where several animations can follow each other,
+    //or a static image can be displayed after an animation
+}
+Frame *Animation::get_current_frame(){
+    return _frames[_current_frame];
+}
+Frame *Animation::get_next_frame(){
+    return _frames[_get_next_frame_idx()];
+}
+Frame *Animation::get_prev_frame(){
+    return _frames[_get_prev_frame_idx()];
+}
 
 // Private Methods 
+
+int Animation::_get_next_frame_idx(){
+    if (_current_frame < _num_frames-1)
+    {
+        return _current_frame+1;
+    }else{
+        return 0;
+    }
+}
+
+int Animation::_get_prev_frame_idx()
+{
+    if (_current_frame > 0)
+    {
+        return _current_frame - 1;
+    }
+    else
+    {
+        return _num_frames-1;
+    }
+}
