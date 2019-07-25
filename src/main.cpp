@@ -5,7 +5,7 @@
 #include "debug.h"
 #include "RamMonitor.h"
 
-#define SHIFT_INDICATOR_PIN 32
+#define PWM_PERIOD_INDICATOR 32
 
 const bool DEBUG = true;
 int counter = 0;                //debugvariables
@@ -49,18 +49,30 @@ unsigned long frame_period   = 1000/frame_rate; //ms
 //uint32_t prevMagnetState[COLS];
 //uint32_t currMagnetState[COLS];
 
-Frame *preloaded_frames[10];
-uint32_t preloaded_animation[10][COLS] = {
-    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0xffff,      0, 0, 0, 0, 0, 0, 0, 0, 0},
-    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0b1,    0, 0, 0, 0, 0, 0, 0, 0, 0},
-    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0b11,   0, 0, 0, 0, 0, 0, 0, 0, 0},
-    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0b10,   0, 0, 0, 0, 0, 0, 0, 0, 0},
-    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0b110,  0, 0, 0, 0, 0, 0, 0, 0, 0},
-    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0b100,  0, 0, 0, 0, 0, 0, 0, 0, 0},
-    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0b110,  0, 0, 0, 0, 0, 0, 0, 0, 0},
-    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0b10,   0, 0, 0, 0, 0, 0, 0, 0, 0},
-    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0b11,   0, 0, 0, 0, 0, 0, 0, 0, 0},
-    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0b1,    0, 0, 0, 0, 0, 0, 0, 0, 0},
+const int preload_frames = 20;
+Frame *preloaded_frames[preload_frames];
+uint32_t preloaded_animation[preload_frames][COLS] = {
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0b1, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0b11, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0b10, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0b110, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0b100, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0b100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0b100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0b100, 0b100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0b100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+
+    {0, 0, 0, 0, 0, 0, 0, 0b1100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0b1000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0b1000, 0b1000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0b1000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0b1100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0b100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0b110, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0b10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0b11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0b1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 };
 //uint32_t dynamic_animation;
 Animation* current_anim;
@@ -77,6 +89,8 @@ void turnMagnetsOnIn(int* xArr, int y,int xLength, int inMillis, int forMillis, 
 //Functions:
 void report_ram_stat(const char *aname, uint32_t avalue)
 {
+  // Code from RamMonitorExample.cpp
+  // copyright Adrian Hunt (c) 2015 - 2016
   Serial.print(aname);
   Serial.print(": ");
   Serial.print((avalue + 512) / 1024);
@@ -86,7 +100,9 @@ void report_ram_stat(const char *aname, uint32_t avalue)
 };
 
 void report_ram()
-{
+{ 
+  // Code from RamMonitorExample.cpp
+  // copyright Adrian Hunt (c) 2015 - 2016
   bool lowmem;
   bool crash;
 
@@ -197,7 +213,8 @@ void shiftOut_one_PCB_per_PORT(void)
   //indicate to logic analyzer that the shift is starting
   //(The latch pin could be used to achieve this functionality in current software,
   //but in order to test different shifting procedures a separate pin is used)
-  digitalWrite(SHIFT_INDICATOR_PIN, HIGH);
+  if(dutyCycleCounter == 0)
+    digitalWrite(PWM_PERIOD_INDICATOR, HIGH);
   //ground latchPin and hold low for as long as you are transmitting
   digitalWrite(SHIFT_ENABLE_PIN, LOW);
 
@@ -232,7 +249,8 @@ void shiftOut_one_PCB_per_PORT(void)
   digitalWrite(SHIFT_ENABLE_PIN, HIGH);
 
   //Indicate to logic analyzer that the shift is done
-  digitalWrite(SHIFT_INDICATOR_PIN, LOW);
+  if (dutyCycleCounter == DUTY_CYCLE_RESOLUTION-1)
+    digitalWrite(PWM_PERIOD_INDICATOR, LOW);
 }
 
 void refreshScreen()
@@ -248,116 +266,6 @@ void refreshScreen()
 
   shiftOut_one_PCB_per_PORT();
 }
-/*
-void tMovement(){
-  if(frame == 1){
-    int t = 0;
-    int distanceBetween = 2;
-    turnMagnetOnIn(3, 0, t + 0, 500);
-    turnMagnetOnIn(3, 1, t + shortDelay, longDelay);
-    turnMagnetOnIn(3, 2, t + shortDelay * 2, longDelay);
-    turnMagnetOnIn(3, 3, t + shortDelay * 3, longDelay);
-    turnMagnetOnIn(3, 4, t + shortDelay * 4, longDelay);
-    turnMagnetOnIn(3, 5, t + shortDelay * 5, timeBetweenRefreshes - (t + shortDelay * 5));
-    t = shortDelay * distanceBetween;
-    turnMagnetOnIn(2, 0, t + 0, 500);
-    turnMagnetOnIn(2, 1, t + shortDelay, longDelay);
-    turnMagnetOnIn(2, 2, t + shortDelay * 2, longDelay);
-    turnMagnetOnIn(2, 3, t + shortDelay * 3, longDelay);
-    turnMagnetOnIn(2, 4, t + shortDelay * 4, longDelay);
-    turnMagnetOnIn(2, 5, t + shortDelay * 5, timeBetweenRefreshes - (t + shortDelay * 5));
-    t += shortDelay * distanceBetween;
-    turnMagnetOnIn(1, 0, t + 0, 500);
-    turnMagnetOnIn(1, 1, t + shortDelay, longDelay);
-    turnMagnetOnIn(1, 2, t + shortDelay * 2, longDelay);
-    turnMagnetOnIn(1, 3, t + shortDelay * 3, longDelay);
-    turnMagnetOnIn(1, 4, t + shortDelay * 4, longDelay);
-    turnMagnetOnIn(1, 5, t + shortDelay * 5, timeBetweenRefreshes - (t + shortDelay * 5));
-    //t += shortDelay*distanceBetween;
-    //turnMagnetOnIn(1,0,t+0,500);
-    //turnMagnetOnIn(1,1,t+shortDelay,longDelay);
-    //turnMagnetOnIn(1,2,t+shortDelay*2,longDelay);
-    //turnMagnetOnIn(1,3,t+shortDelay*3,longDelay);
-    //turnMagnetOnIn(1,4,t+shortDelay*4,timeBetweenRefreshes-(t+shortDelay*4));
-    //t += shortDelay*distanceBetween;
-    //turnMagnetOnIn(0,0,t+0,500);
-    //turnMagnetOnIn(0,1,t+shortDelay,longDelay);
-    //turnMagnetOnIn(0,2,t+shortDelay*2,longDelay);
-    //turnMagnetOnIn(0,3,t+shortDelay*3,longDelay);
-    //turnMagnetOnIn(0,4,t+shortDelay*4,timeBetweenRefreshes-(t+shortDelay*4));
-
-    frame++;
-  }else if(frame == 2){
-    // Plot T
-
-
-    //turnMagnetOnIn(1,0,0,timeBetweenRefreshes,45);
-    //turnMagnetOnIn(2,0,0,timeBetweenRefreshes,45);
-    //turnMagnetOnIn(3,0,0,timeBetweenRefreshes,45);
-
-    //turnMagnetOnIn(0,1,0,timeBetweenRefreshes,45);
-    //turnMagnetOnIn(1,1,0,timeBetweenRefreshes,90);
-    turnMagnetOnIn(2,1,0,shortDelay);
-    //turnMagnetOnIn(3,1,0,timeBetweenRefreshes,90);
-    //turnMagnetOnIn(4,1,0,timeBetweenRefreshes,45);
-
-    //turnMagnetOnIn(0,2,0,timeBetweenRefreshes,95);
-    //turnMagnetOnIn(1,2,0,timeBetweenRefreshes);
-    turnMagnetOnIn(2,2,0,timeBetweenRefreshes,60);
-    //turnMagnetOnIn(4,2,0,timeBetweenRefreshes);
-
-    //turnMagnetOnIn(0,3,0,timeBetweenRefreshes);
-    turnMagnetOnIn(2,3,0,timeBetweenRefreshes,60);
-    //turnMagnetOnIn(4,3,0,timeBetweenRefreshes);
-
-    //turnMagnetOnIn(1,4,0,timeBetweenRefreshes);
-    turnMagnetOnIn(2,4,0,timeBetweenRefreshes,90);
-    //turnMagnetOnIn(3,4,0,timeBetweenRefreshes);
-
-    turnMagnetOnIn(1, 5, 0, timeBetweenRefreshes);
-    turnMagnetOnIn(2, 5, 0, timeBetweenRefreshes);
-    turnMagnetOnIn(3, 5, 0, timeBetweenRefreshes);
-
-    frame++;
-  }else if(frame == 3){
-    //Drag everything down
-    //Row 0
-    turnMagnetOnIn(1, 0, 0, shortDelay * 6);
-    turnMagnetOnIn(2, 0, 0, shortDelay * 6);
-    turnMagnetOnIn(3, 0, 0, shortDelay * 6);
-
-    //Row 1
-    turnMagnetOnIn(1, 1, 0, shortDelay * 5);
-    turnMagnetOnIn(2, 1, 0, shortDelay * 5);
-    turnMagnetOnIn(3, 1, 0, shortDelay * 5);
-    //Row 2
-    turnMagnetOnIn(1, 2, 0, shortDelay * 4);
-    turnMagnetOnIn(2, 2, 0, shortDelay * 4);
-    turnMagnetOnIn(3, 2, 0, shortDelay * 4);
-    //Row 3
-    turnMagnetOnIn(1, 3, 0, shortDelay * 3);
-    turnMagnetOnIn(2, 3, 0, shortDelay * 3);
-    turnMagnetOnIn(3, 3, 0, shortDelay * 3);
-    //Row 4
-    turnMagnetOnIn(1, 4, 0, shortDelay * 2);
-    turnMagnetOnIn(2, 4, 0, shortDelay * 2);
-    turnMagnetOnIn(3, 4, 0, shortDelay * 2);
-    //Row 5
-    turnMagnetOnIn(1, 5, 0, shortDelay);
-    turnMagnetOnIn(2, 5, 0, shortDelay);
-    turnMagnetOnIn(3, 5, 0, shortDelay);
-
-    frame++;
-  } else{
-
-
-
-    frame = 1;
-  }
-
-
-}
-*/
 
 void turnMagnetsOnIn(int* xArr, int y, int xLength, int inMillis, int forMillis, uint8_t uptime){
   //TODO: Make a FIFO buffer that can hold future (inMillis,forMillis) tuples. (Maybe: https://github.com/rlogiacco/CircularBuffer)
@@ -439,8 +347,7 @@ void movementAlgorithm(){
     Serial.println(time_for_next_frame);
   #endif
   if(timeThisRefresh >= time_for_next_frame){
-    ram.run();
-    report_ram();
+
     current_anim->goto_next_frame();
 
     Serial.print("Preparing Frame: ");
@@ -467,11 +374,11 @@ void setup() {
   //debug::dumpHex(stack1, 512);
 
   //set pins to output because they are addressed in the main loop
-  pinMode(SHIFT_INDICATOR_PIN,OUTPUT);
+  pinMode(PWM_PERIOD_INDICATOR,OUTPUT);
   pinMode(SHIFT_CLK_PIN,OUTPUT);
   pinMode(SHIFT_ENABLE_PIN,OUTPUT);
 
-  digitalWrite(SHIFT_INDICATOR_PIN, LOW);
+  digitalWrite(PWM_PERIOD_INDICATOR, LOW);
   digitalWrite(SHIFT_CLK_PIN, LOW);
   digitalWrite(SHIFT_ENABLE_PIN, HIGH);
   for (int i = 0; i < ALL_ROWS; i++)
@@ -501,18 +408,13 @@ void setup() {
 
   ram.run();
 
-  //Frame *frames[10];
-  for (size_t i = 0; i < 10; i++)
+  //Load preloaded frames into objects.
+  for (size_t i = 0; i < preload_frames; i++)
   {
-    //frames[i]->write_picture(preloaded_animation[i]);
     preloaded_frames[i] = new Frame(preloaded_animation[i]);
   }
-  current_anim = new Animation(preloaded_frames, 10);
-  current_frame = current_anim->get_current_frame();
-  //current_anim->load_frames_from_array(preloaded_animation);
-
-  //current_anim = new Animation(10,COLS,ROWS);
-  
+  current_anim = new Animation(preloaded_frames, preload_frames);
+  current_frame = current_anim->get_current_frame();  
 
   startTime = micros();
   timeThisRefresh = millis();
