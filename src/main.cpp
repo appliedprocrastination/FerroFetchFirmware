@@ -1,11 +1,13 @@
 #include <Arduino.h>
 #include <arm_math.h>
 
-#include <Animation.h>
+#include "Animation.h"
+#include "debug.h"
+#include "RamMonitor.h"
 
 #define SHIFT_INDICATOR_PIN 32
 
-const bool DEBUG = false;
+const bool DEBUG = true;
 int counter = 0;                //debugvariables
 unsigned long startTime = 0;    //debugvariables
 
@@ -13,7 +15,7 @@ unsigned long startTime = 0;    //debugvariables
 //DYNAMIC_ANIMATION:    The animation can be changed/updated dynamically, but is based on a fixed framerate
 //ASYNC_ANIMATION:      The animation is independent of the framerate and a pixel can be set at any given time.
 enum AnimationMode{PRELOADED_ANIMATION, DYNAMIC_ANIMATION, ASYNC_ANIMATION};
-AnimationMode mode = PRELOADED_ANIMATION;
+AnimationMode animation_mode = PRELOADED_ANIMATION;
 
 //Pin connected to SRCLK of SN74HC595
 const int SHIFT_CLK_PIN = 2; //SRCLK
@@ -22,92 +24,126 @@ const int SHIFT_ENABLE_PIN = 3; //RCLK
 //Pin connected to SER of SN74HC595
 const int SHIFT_DATA_PINS[12] = {15, 22, 23, 9, 10, 13, 11, 12, 35, 36, 37, 38}; //SER, NOTE: the variable "ALL_ROWS" will change how many of these pinsare initiated
 
-//holders for infromation you're going to pass to shifting function
-const int ALL_ROWS = 10; //The total number of rows in the actual hardware
-const int ALL_COLS = 19; //The total number of columns in the actual hardware
-const int ROWS = ALL_ROWS;//12; //The number of rows that are in use in the current program (different from ALL_ROWS in order to scale down the number of bits shifted out)
-const int COLS = ALL_COLS;//21; //The number of cols that are in use in the current program (different from ALL_COLS in order to scale down the number of bits shifted out)
-
-const int REGISTERS = ROWS; // no of register series (indicating no of magnet-driver-PCBs connected to the Arduino)
-const int BYTES_PER_REGISTER = 4; // no of 8-bit shift registers in series per line (4 = 32 bits(/magnets))
 
 //Timekeeping variables:
 float timeTilStart[COLS][ROWS]; //The time in ms until a magnet should start. Used to make movement patterns before the movement should happen
 float timeAtStart[COLS][ROWS];  //The time in ms when a magnet was started. Used as a safety feature so that a magnet doesn't stay turned on too long.
 float timeAtEnd[COLS][ROWS];    //The duration a magnet should stay turned on once it's been turned on.
 unsigned long timeThisRefresh = 0;
-unsigned long timeForNewRefresh = 0;
+unsigned long time_for_next_frame = 0;
 
 //Other movement related variables
-uint8_t dutyCycle[COLS][ROWS];
+uint8_t async_dutyCycle[COLS][ROWS];
 uint8_t dutyCycleCounter = 0;
-uint8_t dutyCycleResolution = 20; //resolution 20 yields 5% increments, resolution 10 yields 10% increments
-int shortDelay = 500; //ms
-int longDelay = 1000; //ms
-unsigned long timeBetweenRefreshes = 6000;//12*shortDelay; //ms
+//DUTY_CYCLE_RESOLUTION = 20 is defined in Animation.h. Resolution 20 yields 5% increments, resolution 10 yields 10% increments
+//int shortDelay = 500; //ms
+//int longDelay = 1000; //ms
+//unsigned long timeBetweenRefreshes = 6000;//12*shortDelay; //ms
+unsigned long frame_rate    = 4; //fps
+unsigned long frame_period   = 1000/frame_rate; //ms
 
-int frame = 1;
-//const int preloaded_anim_num_frames = 10; //only to be used in the preloaded animation mode 
-bool animation_is_preloaded = false;
+//int frame = 1;
+
 
 //States
-uint32_t prevMagnetState_reg_based[COLS];
-uint32_t currMagnetState_reg_based[COLS];
+//uint32_t prevMagnetState[COLS];
+//uint32_t currMagnetState[COLS];
 
-/*const uint32_t preloaded_animation[preloaded_anim_num_frames][COLS] = {
-    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0b1, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0b11, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0b10, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0b110, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0b100, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0b110, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0b10, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0b11, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0b1, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-};*/
+uint32_t preloaded_animation[10][COLS] = {
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0xffff,      0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0b1,    0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0b11,   0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0b10,   0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0b110,  0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0b100,  0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0b110,  0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0b10,   0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0b11,   0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0b1,    0, 0, 0, 0, 0, 0, 0, 0, 0},
+};
 //uint32_t dynamic_animation;
-uint32_t mag_state_this_frame[COLS]; //This state array contains the "on"/"off" state of a magnet as how it's supposed to stay through the frame. If the pixel has PWM enabled it will be toggled in the "shift_out_mag_state" array corresponding to it's duty cycle
-uint32_t shift_out_mag_state[COLS];  //This state array is used to implement PWM by keeping track of duty cycle 
+Animation* current_anim;
+Frame*    current_frame;
+//uint32_t  current_picture[COLS]; //This state array contains the "on"/"off" state of a magnet as how it's supposed to stay through the frame. If the pixel has PWM enabled it will be toggled in the "shift_out_mag_state" array corresponding to it's duty cycle
+uint32_t  current_shift_out_mag_state[COLS];  //This state array is used to implement PWM by keeping track of duty cycle
 
+RamMonitor ram;
 
 //Function headers:
 void turnMagnetOnIn(int x, int y, int inMillis, int forMillis, uint8_t uptime=100); //Uptime in percent
 void turnMagnetsOnIn(int* xArr, int y,int xLength, int inMillis, int forMillis, uint8_t uptime=100); //Uptime in percent
 
 //Functions:
-boolean magnetIsToggledThisFrame_reg_based(int x, int y)
+void report_ram_stat(const char *aname, uint32_t avalue)
 {
-  if ( (prevMagnetState_reg_based[x] & (1 << y) ) == 0 && ( currMagnetState_reg_based[x] & (1 << y) ) == 1)
+  Serial.print(aname);
+  Serial.print(": ");
+  Serial.print((avalue + 512) / 1024);
+  Serial.print(" Kb (");
+  Serial.print((((float)avalue) / ram.total()) * 100, 1);
+  Serial.println("%)");
+};
+
+void report_ram()
+{
+  bool lowmem;
+  bool crash;
+
+  Serial.println("==== memory report ====");
+
+  report_ram_stat("free", ram.adj_free());
+  report_ram_stat("stack", ram.stack_total());
+  report_ram_stat("heap", ram.heap_total());
+
+  lowmem = ram.warning_lowmem();
+  crash = ram.warning_crash();
+  if (lowmem || crash)
+  {
+    Serial.println();
+
+    if (crash)
+      Serial.println("**warning: stack and heap crash possible");
+    else if (lowmem)
+      Serial.println("**warning: unallocated memory running low");
+  };
+
+  Serial.println();
+};
+/*
+boolean magnetIsToggledThisFrame(int x, int y)
+{
+  if ( (prevMagnetState[x] & (1 << y) ) == 0 && ( currMagnetState[x] & (1 << y) ) == 1)
   {
     return true;
   }
   return false;
 }
 
-void updateTimeAtStart_reg_based(int x)
+void updateTimeAtStart(int x)
 {
+  //This function is supposed to be a safety feature 
+  //that keeps track of how long a magnet has been "on" consecutively.
   for (size_t y = 0; y < COLS; y++)
   {
-    if (magnetIsToggledThisFrame_reg_based(x,y))
+    if (magnetIsToggledThisFrame(x,y))
     {
       timeAtStart[x][y] = timeThisRefresh;
     }
   }
-  
 }
+*/
 
-void updateAllStates_reg_based()
+void updateAllStates_async()
 {
   for (int x = 0; x < COLS; x++)
   {
-    currMagnetState_reg_based[x] = 0;
+    current_shift_out_mag_state[x] = 0;
     for (int y = 0; y < ROWS; y++)
     {
       if (timeTilStart[x][y] <= timeThisRefresh && timeAtEnd[x][y] > timeThisRefresh)
       {
-        if(dutyCycle[x][y] > dutyCycleCounter){
-          currMagnetState_reg_based[x] |= 1 << y;
+        if(current_frame->get_duty_cycle_at(x,y) > dutyCycleCounter){
+          current_shift_out_mag_state[x] |= 1 << y;
         }
 
         #if (DEBUG && false)
@@ -123,10 +159,31 @@ void updateAllStates_reg_based()
     }
   }
   dutyCycleCounter++;
-  if (dutyCycleCounter >= dutyCycleResolution)
+  if (dutyCycleCounter >= DUTY_CYCLE_RESOLUTION)
     dutyCycleCounter = 0;
 }
+void update_all_states()
+{
+  
+  for (int x = 0; x < COLS; x++)
+  {
+    current_shift_out_mag_state[x] = current_frame->get_picture_at(x);
+    for (size_t i = 0; i < current_frame->pwm_pixels_x.size(); i++)
+    {
+      if(current_frame->pwm_pixels_x[i] == x){
+        if (current_frame->get_duty_cycle_at(current_frame->pwm_pixels_x[i], current_frame->pwm_pixels_y[i]) > dutyCycleCounter)
+        {
+          current_shift_out_mag_state[x] ^= 1 << current_frame->pwm_pixels_y[i]; //Toggle (turn off )
+        } 
+      }
+    }
+  }
+  dutyCycleCounter++;
+  if (dutyCycleCounter >= DUTY_CYCLE_RESOLUTION)
+    dutyCycleCounter = 0;
 
+  
+}
 void shiftOut_one_PCB_per_PORT(void)
 {
   //This method is based on the assumption that the SER pin of SN74HC595 is connected to
@@ -153,9 +210,12 @@ void shiftOut_one_PCB_per_PORT(void)
     
     //Sets all data-pins to HIGH or LOW depending on the corresponding value in the currMagnetState
     //(because we've checked that they are on the same port): digitalWrite(SHIFT_DATA_PINS[y], LOW);
-    GPIOC_PDOR = currMagnetState_reg_based[x];
+    GPIOC_PDOR = current_shift_out_mag_state[x];
 
-    updateTimeAtStart_reg_based(x);
+    //The following line has not been used properly in the rest of the code, so I've disabled it for now.
+    //Ideally it should set a warning flag if the time since a magnet was turned on has passed a threshold
+    //so that no magent will stay "on" infinetely.
+    //updateTimeAtStart(x);
 
     //register shifts bits on rising edge of clock pin
     digitalWrite(SHIFT_CLK_PIN, HIGH);
@@ -163,9 +223,6 @@ void shiftOut_one_PCB_per_PORT(void)
     //zero the data pin after shift to prevent bleed through
     GPIOC_PDOR = 0; //digitalWrite(SHIFT_DATA_PIN, LOW);
   }
-  # if (DEBUG && timeThisRefresh >= timeForNewRefresh)
-    Serial.println();
-  #endif
   //stop shifting
   digitalWrite(SHIFT_CLK_PIN, LOW);
   
@@ -177,14 +234,20 @@ void shiftOut_one_PCB_per_PORT(void)
   digitalWrite(SHIFT_INDICATOR_PIN, LOW);
 }
 
-void refreshScreen_reg_based()
+void refreshScreen()
 {
-  updateAllStates_reg_based();
+  if(animation_mode == ASYNC_ANIMATION){
+    //The animation is based on individual times
+    updateAllStates_async();
+  }else{
+    //The animation is based on a fixed framerate
+    update_all_states();
+  }
 
 
   shiftOut_one_PCB_per_PORT();
 }
-
+/*
 void tMovement(){
   if(frame == 1){
     int t = 0;
@@ -293,7 +356,7 @@ void tMovement(){
 
 
 }
-
+*/
 
 void turnMagnetsOnIn(int* xArr, int y, int xLength, int inMillis, int forMillis, uint8_t uptime){
   //TODO: Make a FIFO buffer that can hold future (inMillis,forMillis) tuples. (Maybe: https://github.com/rlogiacco/CircularBuffer)
@@ -305,7 +368,7 @@ void turnMagnetsOnIn(int* xArr, int y, int xLength, int inMillis, int forMillis,
     timeTilStart[x][y] = timeThisRefresh + inMillis;
     timeAtEnd[x][y] = timeThisRefresh + inMillis + forMillis; //Equal to: timeTilStart+forMillis
     if(uptime > 100) uptime = 100;
-      dutyCycle[x][y] = (uint8_t)((uptime / 100.0) * (dutyCycleResolution-1));
+      async_dutyCycle[x][y] = (uint8_t)((uptime / 100.0) * (DUTY_CYCLE_RESOLUTION-1));
     # if(DEBUG && false) //Using &&false when I don't want this output
       Serial.print("Magnet (");
       Serial.print(x);
@@ -329,7 +392,7 @@ void turnMagnetOnIn(int x, int y, int inMillis, int forMillis, uint8_t uptime){
   timeTilStart[x][y] = timeThisRefresh + inMillis;
   timeAtEnd[x][y] = timeThisRefresh + inMillis + forMillis; //Equal to: timeTilStart+forMillis
   if(uptime > 100) uptime = 100;
-  dutyCycle[x][y] = (uint8_t)((uptime / 100.0f) * (dutyCycleResolution));
+  async_dutyCycle[x][y] = (uint8_t)((uptime / 100.0f) * (DUTY_CYCLE_RESOLUTION));
   # if(DEBUG && false) //Using &&false when I don't want this output
     Serial.print("Magnet (");
     Serial.print(x);
@@ -344,35 +407,74 @@ void turnMagnetOnIn(int x, int y, int inMillis, int forMillis, uint8_t uptime){
   #endif
 }
 
+void turn_on_magnet_in_frame(int frame_num, int x, int y, uint8_t uptime){
+  Frame *frame = current_anim->get_frame(frame_num);
+  
+  frame->set_pixel(x,y);
+  
+  if (uptime > 100)
+    uptime = 100;
+  frame->write_duty_cycle_at(x,y,(uint8_t)((uptime / 100.0f) * (DUTY_CYCLE_RESOLUTION)));
+
+  #if (DEBUG && false) //Using &&false when I don't want this output
+    Serial.print("Magnet (");
+    Serial.print(x);
+    Serial.print(",");
+    Serial.print(y);
+    Serial.print(") will turn ON in frame: ");
+    Serial.print(frame_num);
+    Serial.print(", at:");
+    Serial.print(frame.get_duty_cycle(x,y));
+    Serial.print("duty. Current frame: ");
+    Serial.println(current_anim->get_current_frame_num());
+  #endif
+}
+
 void movementAlgorithm(){
   #if (DEBUG && false)
     Serial.print("timeThisRefresh: ");
     Serial.println(timeThisRefresh);
-    Serial.print("timeForNewRefresh: ");
-    Serial.println(timeForNewRefresh);
+    Serial.print("time_for_next_frame: ");
+    Serial.println(time_for_next_frame);
   #endif
-  if(timeThisRefresh >= timeForNewRefresh){
+  if(timeThisRefresh >= time_for_next_frame){
+    ram.run();
+    report_ram();
+    current_anim->goto_next_frame();
 
     Serial.print("Preparing Frame: ");
-    Serial.print(frame);
+    Serial.print(current_anim->get_current_frame_num());
     Serial.println();
 
-    tMovement();
+    current_frame = current_anim->get_current_frame();
+    uint32_t column = current_frame->get_picture_at(3);
+    Serial.println(column);
+    ram.run();
+    report_ram();
 
-    timeForNewRefresh += timeBetweenRefreshes; //Theoretically the same as timeThisRefresh+timeBetweenRefreshes, but in case a turn(ms) is skipped for some reason this will be more accurate.
+    time_for_next_frame += frame_period; //Theoretically the same as timeThisRefresh+frame_period, but in case a turn(ms) is skipped for some reason this will be more accurate.
   }
 }
+
+
 
 void setup() {
   Serial.begin(9600);
   Serial.println("Serial initiated");
+  ram.initialize();
+  //Serial.begin(9600);
+  debug::init(Serial);
+  while(!Serial);
+  //debug::dumpHex(stack1, 512);
 
   //set pins to output because they are addressed in the main loop
   pinMode(SHIFT_INDICATOR_PIN,OUTPUT);
-  digitalWrite(SHIFT_INDICATOR_PIN,LOW);
-
   pinMode(SHIFT_CLK_PIN,OUTPUT);
   pinMode(SHIFT_ENABLE_PIN,OUTPUT);
+
+  digitalWrite(SHIFT_INDICATOR_PIN, LOW);
+  digitalWrite(SHIFT_CLK_PIN, LOW);
+  digitalWrite(SHIFT_ENABLE_PIN, HIGH);
   for (int i = 0; i < ALL_ROWS; i++)
   {
     pinMode(SHIFT_DATA_PINS[i],OUTPUT);
@@ -381,7 +483,7 @@ void setup() {
     for(int y=0;y<ROWS;y++){
       timeAtEnd[x][y] = 0;
       timeAtStart[x][y] = 0;
-      dutyCycle[x][y] = dutyCycleResolution;
+      //dutyCycle[x][y] = DUTY_CYCLE_RESOLUTION;
     }
   }
 
@@ -389,7 +491,7 @@ void setup() {
   //Especially important if ALL_ROWS != ROWS
   for (int x = ALL_COLS - 1; x >= 0; x--)
   {
-    currMagnetState_reg_based[x] = 0;
+    current_shift_out_mag_state[x] = 0;
   }
   shiftOut_one_PCB_per_PORT();
   for (int i = ALL_ROWS - 1; i > ROWS-1 ; i--)
@@ -398,22 +500,48 @@ void setup() {
     pinMode(SHIFT_DATA_PINS[i], INPUT);
   }
 
+  ram.run();
+
+  Frame *frames[10];
+  for (size_t i = 0; i < 10; i++)
+  {
+    //frames[i]->write_picture(preloaded_animation[i]);
+    frames[i] = new Frame(preloaded_animation[i]);
+  }
+  current_anim = new Animation(frames, 10);
+  current_frame = current_anim->get_current_frame();
+  //current_anim->load_frames_from_array(preloaded_animation);
+
+  //current_anim = new Animation(10,COLS,ROWS);
+  
+
   startTime = micros();
   timeThisRefresh = millis();
-  timeForNewRefresh = timeThisRefresh+timeBetweenRefreshes;
+  time_for_next_frame = timeThisRefresh+frame_period;
   Serial.print("Setup was executed in: ");
   Serial.print(startTime);
   Serial.println("us");
 }
-
+unsigned long reporttime = 0;
 void loop(){
   timeThisRefresh = millis();
-  
+  delay(frame_period); //TODO: This is for DEBUG. Remove when not needed
   movementAlgorithm();
-  refreshScreen_reg_based();
-  for(int x=0;x<COLS;x++){
-    prevMagnetState_reg_based[x] = currMagnetState_reg_based[x];
+  refreshScreen();
+  ram.run();
+  if ((timeThisRefresh - reporttime) > 100)
+  {
+    reporttime = timeThisRefresh;
+    //report_ram();
+  };
+    /*
+  if(animation_mode == ASYNC_ANIMATION){
+    //TODO: Figure out if this is still necessary in async animation or if the frame obj. can be used.
+    for(int x=0;x<COLS;x++){
+      prevMagnetState[x] = currMagnetState[x];
+    }
   }
+  */
 
   #if(DEBUG)
     if(counter >= 1000){
