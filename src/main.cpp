@@ -49,6 +49,7 @@ unsigned long frame_period   = 1000/frame_rate; //ms
 //uint32_t prevMagnetState[COLS];
 //uint32_t currMagnetState[COLS];
 
+Frame *preloaded_frames[10];
 uint32_t preloaded_animation[10][COLS] = {
     {0, 0, 0, 0, 0, 0, 0, 0, 0, 0xffff,      0, 0, 0, 0, 0, 0, 0, 0, 0},
     {0, 0, 0, 0, 0, 0, 0, 0, 0, 0b1,    0, 0, 0, 0, 0, 0, 0, 0, 0},
@@ -447,8 +448,6 @@ void movementAlgorithm(){
     Serial.println();
 
     current_frame = current_anim->get_current_frame();
-    uint32_t column = current_frame->get_picture_at(3);
-    Serial.println(column);
     ram.run();
     report_ram();
 
@@ -502,13 +501,13 @@ void setup() {
 
   ram.run();
 
-  Frame *frames[10];
+  //Frame *frames[10];
   for (size_t i = 0; i < 10; i++)
   {
     //frames[i]->write_picture(preloaded_animation[i]);
-    frames[i] = new Frame(preloaded_animation[i]);
+    preloaded_frames[i] = new Frame(preloaded_animation[i]);
   }
-  current_anim = new Animation(frames, 10);
+  current_anim = new Animation(preloaded_frames, 10);
   current_frame = current_anim->get_current_frame();
   //current_anim->load_frames_from_array(preloaded_animation);
 
@@ -525,9 +524,10 @@ void setup() {
 unsigned long reporttime = 0;
 void loop(){
   timeThisRefresh = millis();
-  delay(frame_period); //TODO: This is for DEBUG. Remove when not needed
+  
   movementAlgorithm();
   refreshScreen();
+  
   ram.run();
   if ((timeThisRefresh - reporttime) > 100)
   {

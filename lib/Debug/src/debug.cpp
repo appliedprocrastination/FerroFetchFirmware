@@ -121,15 +121,15 @@ void HardFault_Handler()
         : "r0", "memory");
 
     */
-    uint32_t cfsr = SCB_CFSR;
+    /* uint32_t cfsr = SCB_CFSR;
     uint32_t afsr = SCB_AFAR; // TODO Name error should be AFSR
     uint32_t dfsr = SCB_DFSR;
     uint32_t hfsr = SCB_HFSR;
     uint32_t mmfar = SCB_MMFAR;
     uint32_t bfar = SCB_BFAR;
-    
-    dout->println("\n\rHardFault:");
-    dout->printf("SCB->CFSR  0x%08lx\n\r", cfsr);
+    */
+    //dout->println("\n\rHardFault:");
+    /*dout->printf("SCB->CFSR  0x%08lx\n\r", cfsr);
     dout->printf("SCB->HFSR  0x%08lx\n\r", hfsr);
     dout->printf("SCB->MMFAR 0x%08lx\n\r", mmfar);
     dout->printf("SCB->BFAR  0x%08lx\n\r", bfar);
@@ -138,7 +138,7 @@ void HardFault_Handler()
 
 
     dout->printf("reboot\n\r");
-
+    */
     //_reboot_Teensyduino_();
     
 }
