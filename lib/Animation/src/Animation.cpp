@@ -1,5 +1,7 @@
 #include "Animation.h"
 
+uint32_t empty_picture[COLS] = {0};
+
 //Constructor
 Frame::Frame(uint32_t *picture, uint8_t **duty_cycle, int cols, int rows)
 {
@@ -163,7 +165,6 @@ Animation::Animation(Frame **frames, int num_frames, int cols, int rows)
     _num_frames = num_frames;
     _cols = cols;
     _rows = rows;
-    _current_frame = 0;
 
     if (frames == nullptr)
     {
@@ -177,6 +178,7 @@ Animation::Animation(Frame **frames, int num_frames, int cols, int rows)
     {
         _frames = frames;
     }
+    _blank_frame = Frame(empty_picture);
 }
 
 // Public Methods
@@ -193,7 +195,7 @@ Frame *Animation::get_frame(int frame_num)
 {
     return _frames[frame_num];
 }
-void Animation::set_frame(int frame_num, Frame *frame)
+void Animation::write_frame(int frame_num, Frame *frame)
 {
     _frames[frame_num] = frame;
 }
@@ -216,48 +218,204 @@ int Animation::get_current_frame_num()
 
 void Animation::goto_next_frame()
 {
+    if (_current_frame_is_on_edge())
+    {
+        //Current frame IS on the edge
+        switch (_playback_type)
+        {
+        case LOOP:
+            if (_current_frame == _start_idx)
+            {
+                _loop_iteration++;
+            }
+            break;
+        case ONCE:
+            break;
+        case BOUNCE:
+            _loop_iteration++; //not checked for current_frame vs start_idx because we want to bounce on both ends of the array
+            if (_loop_iteration != 1)
+            {
+                //First iteration we do not want to toggle
+                _dir_fwd = !_dir_fwd;
+            }
+            break;
+        case LOOP_N_TIMES:
+            if (_current_frame == _start_idx)
+            {
+                _loop_iteration++;
+            }
+
+            break;
+        default:
+            _playback_state = ERROR;
+            break;
+        }
+    }
+
+    _prev_frame = _current_frame;
     _current_frame = _get_next_frame_idx();
-    //TODO: implement a "looping_anim" variable
-    //if loop=false return enum "ANIM_DONE" when _current_frame == 0
-    //this can be built on in the main program
-    //where several animations can follow each other,
-    //or a static image can be displayed after an animation
+
+    if(_playback_state == ERROR){
+        //TODO: Handle this error. Letting it slip to IDLE for now.
+        _current_frame = -1;
+    }
+    if(_current_frame == -1){
+        _playback_state = IDLE;
+    }
 }
-Frame *Animation::get_current_frame()
+void Animation::goto_prev_frame()
 {
+    //This whole function may be unnecessary, since going back and forth is
+    //handled in the goto_next_frame and get_next_frame_idx methods
+    int tmp_prev_frame = _current_frame;
+    _current_frame = _prev_frame; //TODO: use private method _get_prev_frame_idx()?
+    _prev_frame = tmp_prev_frame;
+    
+}
+Frame *Animation::get_current_frame(){
+    if (_current_frame == -1 || _playback_state == IDLE)
+    {
+        return &_blank_frame;
+    }
     return _frames[_current_frame];
 }
-Frame *Animation::get_next_frame()
-{
-    return _frames[_get_next_frame_idx()];
+Frame *Animation::get_next_frame(){
+    int idx = _get_next_frame_idx();
+    if (idx == -1 || _playback_state == IDLE)
+    {
+        return &_blank_frame;
+    }
+    return _frames[idx];
 }
-Frame *Animation::get_prev_frame()
-{
-    return _frames[_get_prev_frame_idx()];
+Frame *Animation::get_prev_frame(){
+    if (_prev_frame == -1 || _playback_state == IDLE)
+    {
+        return &_blank_frame;
+    }
+    
+    return _frames[_prev_frame];
+}
+
+void Animation::start_animation(int start_frame){
+    
+    _playback_state = RUNNING;
+    _start_idx = start_frame;
+    _current_frame = start_frame;
+    _loop_iteration = 0;
+}
+void Animation::write_playback_dir(bool forward){
+    _dir_fwd = forward;
+}
+bool Animation::get_playback_dir(){
+    return _dir_fwd;
+}
+
+bool Animation::anim_done(){
+    if(_playback_state == IDLE){
+        return true;
+    }
+    return false;
+}
+void Animation::write_playback_type(PlaybackType type){
+    _playback_type = type;
+}
+PlaybackType Animation::get_playback_type(){
+    return _playback_type;
 }
 
 // Private Methods
 
 int Animation::_get_next_frame_idx()
 {
-    if (_current_frame < _num_frames - 1)
+    //NOTE TO SELF: This function should not modify any variables!
+    if (!_current_frame_is_on_edge())
     {
-        return _current_frame + 1;
+        //Current frame is NOT on the edge
+        if(_dir_fwd){
+            return _current_frame + 1;
+        }else{
+            return _current_frame - 1;
+        }
+
+        //TODO: Add case for "ONCE" where the animation does not start at 0 or num_frames - 1
+        //When that is done, the case of how to handle "edges" in the frame array for the "ONCE" case 
+        //also needs to be changed.
     }
     else
     {
-        return 0;
+        //Current frame IS on the edge
+        switch (_playback_type)
+        {
+        case LOOP:
+            if (_dir_fwd)
+            {
+                if(_current_frame != 0){
+                    return 0;
+                }
+                return _current_frame + 1;
+            }
+            if(_current_frame == 0){
+                return _num_frames - 1;
+            }
+            return _current_frame - 1;
+            
+        case ONCE:
+            if(_current_frame != _start_idx){
+                return -1; //signals that an "empty frame" should be returned from the function calling this
+            }
+            if(_dir_fwd){
+                if(_current_frame == 0){
+                    return _current_frame + 1;
+                }
+                return 0; //the start condition was the last frame but direction forward
+            }
+            if(_current_frame != 0){
+                return _current_frame - 1;
+            }
+            return _num_frames - 1;//The start condition was 0 but direction backward
+        case BOUNCE:
+            if (_dir_fwd)
+            {
+                return _current_frame + 1;
+            }
+            return _current_frame - 1;
+            
+            
+        case LOOP_N_TIMES:
+            if (_loop_iteration >= _max_iterations)
+            {
+                //using >= in case _max_iterations has illegal value (negative value)
+                return -1; //signals that an "empty frame" should be returned from the function calling this
+            }
+            if (_dir_fwd)
+            {
+                if (_current_frame != 0)
+                {
+                    return 0;
+                }
+                return _current_frame + 1;
+            }
+            if (_current_frame == 0)
+            {
+                return _num_frames - 1;
+            }
+            return _current_frame - 1;
+
+        default:
+            _playback_state = ERROR;
+            return -1;
+        }
     }
 }
 
 int Animation::_get_prev_frame_idx()
 {
-    if (_current_frame > 0)
-    {
-        return _current_frame - 1;
+   return _prev_frame;
+}
+
+bool Animation::_current_frame_is_on_edge(){
+    if ((_current_frame > 0) && (_current_frame < (_num_frames - 1)) ){
+        return false;
     }
-    else
-    {
-        return _num_frames - 1;
-    }
+    return true;
 }

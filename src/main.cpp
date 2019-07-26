@@ -317,6 +317,7 @@ void turnMagnetOnIn(int x, int y, int inMillis, int forMillis, uint8_t uptime){
 }
 
 void turn_on_magnet_in_frame(int frame_num, int x, int y, uint8_t uptime){
+  //TODO: Make it so that this method only changes the dynamic animation, not the preloaded one.
   Frame *frame = current_anim->get_frame(frame_num);
   
   frame->set_pixel(x,y);
@@ -347,7 +348,14 @@ void movementAlgorithm(){
     Serial.println(time_for_next_frame);
   #endif
   if(timeThisRefresh >= time_for_next_frame){
-
+    if(!current_anim->anim_done()){
+      //TODO: Switch to new/next animation?
+      //remember to use current_anim->start_animation() after loading the next animation
+    }
+    if(animation_mode != PRELOADED_ANIMATION){
+      //TODO: handle incoming changes
+      //(or should this be done more often than once per frame? That would slow down the shifting)
+    }
     current_anim->goto_next_frame();
 
     Serial.print("Preparing Frame: ");
@@ -423,19 +431,13 @@ void setup() {
   Serial.print(startTime);
   Serial.println("us");
 }
-unsigned long reporttime = 0;
+
 void loop(){
   timeThisRefresh = millis();
   
   movementAlgorithm();
   refreshScreen();
-  
-  ram.run();
-  if ((timeThisRefresh - reporttime) > 100)
-  {
-    reporttime = timeThisRefresh;
-    //report_ram();
-  };
+
     /*
   if(animation_mode == ASYNC_ANIMATION){
     //TODO: Figure out if this is still necessary in async animation or if the frame obj. can be used.

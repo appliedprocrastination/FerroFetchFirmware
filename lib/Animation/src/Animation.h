@@ -20,6 +20,7 @@ const int COLS = ALL_COLS; //21; //The number of cols that are in use in the cur
 const int REGISTERS = ROWS;       // no of register series (indicating no of magnet-driver-PCBs connected to the Arduino)
 const int BYTES_PER_REGISTER = 4; // no of 8-bit shift registers in series per line (4 = 32 bits(/magnets))
 
+
 class Frame
 {
 public:
@@ -51,28 +52,64 @@ private:
     void _delete_duty_cycle();
 };
 
+enum PlaybackType
+{
+    ONCE,
+    LOOP,
+    BOUNCE,
+    LOOP_N_TIMES //Add "STATIC_IMAGE" here?
+};
+
+enum PlaybackState
+{
+    IDLE, //could be called "DONE", but until a "MagnetMatrix" class controls playbacks (and can change from "done" to "not started" when ending an animation), the name may be confusing.
+    RUNNING,
+    ERROR
+};
+
 class Animation
 {
 public:
     Animation(Frame **frames = nullptr, int num_frames = 2, int cols = COLS, int rows = ROWS);
     void    delete_anim(void);
     Frame*  get_frame(int frame_num);
-    void    set_frame(int frame_num, Frame* frame);
+    void    write_frame(int frame_num, Frame* frame);
     void    load_frames_from_array(uint32_t** animation, uint8_t*** duty_cycle = nullptr);
     int     get_current_frame_num();
     void    goto_next_frame();
+    void    goto_prev_frame();
     Frame*  get_current_frame();
     Frame*  get_next_frame();
     Frame*  get_prev_frame();
-private:
-    int     _cols;
-    int     _rows;
-    int     _num_frames; 
-    int     _current_frame;
 
-    Frame **_frames;
-    int     _get_next_frame_idx();
-    int     _get_prev_frame_idx();
+    void    start_animation(int start_frame = 0);
+    void    write_playback_dir(bool forward);
+    bool    get_playback_dir();
+    bool    anim_done();
+    void    write_playback_type(PlaybackType type);
+    PlaybackType get_playback_type();
+
+private:
+    int             _cols;
+    int             _rows;
+    int             _num_frames; 
+
+    PlaybackType    _playback_type  = LOOP;
+    PlaybackState   _playback_state = IDLE;
+
+    bool            _dir_fwd = true;
+    int             _current_frame = 0;
+    int             _prev_frame = -1;
+    int             _loop_iteration = 0;
+    int             _max_iterations = -1;
+    int             _start_idx = 0; //Where the animation started (not necessarily first index in array)
+    
+
+    Frame         **_frames;
+    Frame           _blank_frame; //used as return statement when playback_state is DONE
+    int             _get_next_frame_idx();
+    int             _get_prev_frame_idx();
+    bool            _current_frame_is_on_edge();
 };
 
 #endif
