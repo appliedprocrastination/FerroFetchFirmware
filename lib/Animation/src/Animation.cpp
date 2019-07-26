@@ -306,6 +306,10 @@ void Animation::start_animation(int start_frame){
 void Animation::write_playback_dir(bool forward){
     _dir_fwd = forward;
 }
+void Animation::write_max_loop_count(int n){
+    _max_iterations = n;
+}
+
 bool Animation::get_playback_dir(){
     return _dir_fwd;
 }

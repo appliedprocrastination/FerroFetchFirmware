@@ -84,6 +84,7 @@ public:
 
     void    start_animation(int start_frame = 0);
     void    write_playback_dir(bool forward);
+    void    write_max_loop_count(int n);
     bool    get_playback_dir();
     bool    anim_done();
     void    write_playback_type(PlaybackType type);

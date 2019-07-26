@@ -103,6 +103,8 @@ private:
                                         0x1FFF8000;  // teensy 3.1 (? 3.2 ?)
 #elif defined(__MKL26Z64__)
                                         0x????????;  // teensy LC
+#elif defined(__MK66FX1M0__)
+      0x1FFF0000; // Teensy 3.6 (from https://github.com/PaulStoffregen/cores/blob/238b102ac46d1184e7055943cb5fe60bcb8eabbe/teensy3/mk66fx1m0.ld)
 #else
                                         0x1FFFE000;  // teensy 3.0
 #endif
