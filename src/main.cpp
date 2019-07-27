@@ -2,6 +2,7 @@
 #include <arm_math.h>
 
 #include "Animation.h"
+#include "ROAnimation.h"
 #include "debug.h"
 #include "RamMonitor.h"
 
@@ -49,11 +50,9 @@ unsigned long frame_period   = 1000/frame_rate; //ms
 //uint32_t prevMagnetState[COLS];
 //uint32_t currMagnetState[COLS];
 const int transport_anim_count = 20;
-Frame *  transport_anim_frames[transport_anim_count];
 const int loop_frames_count = 6;
-Frame *loop_frames[loop_frames_count];
 
-uint32_t transport_animation[transport_anim_count][COLS] PROGMEM = {
+const uint32_t transport_animation[transport_anim_count][COLS] PROGMEM = {
     {0, 0, 0, 0, 0, 0, 0,      0b1,        0,        0b1,         0,       0, 0, 0, 0, 0, 0, 0, 0},
     {0, 0, 0, 0, 0, 0, 0,     0b11,        0,       0b11,         0,       0, 0, 0, 0, 0, 0, 0, 0},
     {0, 0, 0, 0, 0, 0, 0,     0b10,        0,       0b10,         0,       0, 0, 0, 0, 0, 0, 0, 0},
@@ -78,7 +77,7 @@ uint32_t transport_animation[transport_anim_count][COLS] PROGMEM = {
 };
 
 
-uint32_t loop_animation[loop_frames_count][COLS] PROGMEM = {
+const uint32_t loop_animation[loop_frames_count][COLS] PROGMEM = {
     {0, 0, 0, 0, 0, 0, 0,0b0100100, 0b000000,  0b0000000, 0b1001000,       0, 0, 0, 0, 0, 0, 0, 0}, 
     {0, 0, 0, 0, 0, 0, 0,0b0110100, 0b000100,  0b1000000, 0b1011000,       0, 0, 0, 0, 0, 0, 0, 0}, 
     {0, 0, 0, 0, 0, 0, 0,0b0010000, 0b000100,  0b1000000, 0b0010000,       0, 0, 0, 0, 0, 0, 0, 0},
@@ -86,13 +85,43 @@ uint32_t loop_animation[loop_frames_count][COLS] PROGMEM = {
     {0, 0, 0, 0, 0, 0, 0,0b0001000, 0b100000,  0b0000100, 0b0100000,       0, 0, 0, 0, 0, 0, 0, 0}, 
     {0, 0, 0, 0, 0, 0, 0,0b0101100, 0b100000,  0b0000100, 0b1101000,       0, 0, 0, 0, 0, 0, 0, 0},
 };
+const ROFrame f1 PROGMEM = ROFrame(transport_animation[0]);
+const ROFrame f2 PROGMEM = ROFrame(transport_animation[1]);
+const ROFrame f3 PROGMEM = ROFrame(transport_animation[2]);
+const ROFrame f4 PROGMEM = ROFrame(transport_animation[3]);
+const ROFrame f5 PROGMEM = ROFrame(transport_animation[4]);
+const ROFrame f6 PROGMEM = ROFrame(transport_animation[5]);
+const ROFrame f7 PROGMEM = ROFrame(transport_animation[6]);
+const ROFrame f8 PROGMEM = ROFrame(transport_animation[7]);
+const ROFrame f9 PROGMEM = ROFrame(transport_animation[8]); 
+const ROFrame f10 PROGMEM = ROFrame(transport_animation[9]);
+const ROFrame f11 PROGMEM  = ROFrame(transport_animation[10]);
+const ROFrame f12 PROGMEM  = ROFrame(transport_animation[11]);
+const ROFrame f13 PROGMEM  = ROFrame(transport_animation[12]);
+const ROFrame f14 PROGMEM  = ROFrame(transport_animation[13]);
+const ROFrame f15 PROGMEM  = ROFrame(transport_animation[14]);
+const ROFrame f16 PROGMEM  = ROFrame(transport_animation[15]);
+const ROFrame f17 PROGMEM  = ROFrame(transport_animation[16]);
+const ROFrame f18 PROGMEM  = ROFrame(transport_animation[17]);
+const ROFrame f19 PROGMEM  = ROFrame(transport_animation[18]);
+const ROFrame f20 PROGMEM  = ROFrame(transport_animation[19]);
+
+const ROFrame l1 PROGMEM = ROFrame(loop_animation[0]);
+const ROFrame l2 PROGMEM = ROFrame(loop_animation[1]);
+const ROFrame l3 PROGMEM = ROFrame(loop_animation[2]);
+const ROFrame l4 PROGMEM = ROFrame(loop_animation[3]);
+const ROFrame l5 PROGMEM = ROFrame(loop_animation[4]);
+const ROFrame l6 PROGMEM = ROFrame(loop_animation[5]);
+
+const ROFrame *transport_anim_frames[transport_anim_count] PROGMEM = {&f1, &f2, &f3, &f4, &f5, &f6, &f7, &f8, &f9, &f10, &f11, &f12, &f13, &f15, &f16, &f17, &f18, &f19, &f20};
+const ROFrame *loop_frames[loop_frames_count] PROGMEM = {&l1,&l2,&l3,&l4,&l5,&l6} ;
 //Preloaded animations
-Animation* once_anim;
-Animation* loop_anim;
+ROAnimation* once_anim;
+ROAnimation* loop_anim;
 
 //uint32_t dynamic_animation;
-Animation* current_anim;
-Frame*     current_frame;
+ROAnimation* current_anim;
+const ROFrame*     current_frame;
 //uint32_t  current_picture[COLS]; //This state array contains the "on"/"off" state of a magnet as how it's supposed to stay through the frame. If the pixel has PWM enabled it will be toggled in the "shift_out_mag_state" array corresponding to it's duty cycle
 uint32_t  current_shift_out_mag_state[COLS];  //This state array is used to implement PWM by keeping track of duty cycle
 
@@ -167,7 +196,7 @@ void updateTimeAtStart(int x)
   }
 }
 */
-
+/*
 void updateAllStates_async()
 {
   for (int x = 0; x < COLS; x++)
@@ -197,13 +226,14 @@ void updateAllStates_async()
   if (dutyCycleCounter >= DUTY_CYCLE_RESOLUTION)
     dutyCycleCounter = 0;
 }
+*/
 void update_all_states()
 {
   
   for (int x = 0; x < COLS; x++)
   {
     current_shift_out_mag_state[x] = current_frame->get_picture_at(x);
-    for (size_t i = 0; i < current_frame->pwm_pixels_x.size(); i++)
+    /*for (size_t i = 0; i < current_frame->pwm_pixels_x.size(); i++)
     {
       if(current_frame->pwm_pixels_x[i] == x){
         if (current_frame->get_duty_cycle_at(current_frame->pwm_pixels_x[i], current_frame->pwm_pixels_y[i]) > dutyCycleCounter)
@@ -211,7 +241,7 @@ void update_all_states()
           current_shift_out_mag_state[x] ^= 1 << current_frame->pwm_pixels_y[i]; //Toggle (turn off )
         } 
       }
-    }
+    }*/
   }
   dutyCycleCounter++;
   if (dutyCycleCounter >= DUTY_CYCLE_RESOLUTION)
@@ -275,7 +305,7 @@ void refreshScreen()
 {
   if(animation_mode == ASYNC_ANIMATION){
     //The animation is based on individual times
-    updateAllStates_async();
+    //updateAllStates_async();
   }else{
     //The animation is based on a fixed framerate
     update_all_states();
@@ -284,7 +314,7 @@ void refreshScreen()
 
   shiftOut_one_PCB_per_PORT();
 }
-
+/*
 void turnMagnetsOnIn(int* xArr, int y, int xLength, int inMillis, int forMillis, uint8_t uptime){
   //TODO: Make a FIFO buffer that can hold future (inMillis,forMillis) tuples. (Maybe: https://github.com/rlogiacco/CircularBuffer)
   //The future inMillis must then be modified by subtracting the current inMillis, so that it can be placed in the timeTilStart array when the current inMillis has passed and the magnet is turned on.
@@ -357,6 +387,7 @@ void turn_on_magnet_in_frame(int frame_num, int x, int y, uint8_t uptime){
     Serial.println(current_anim->get_current_frame_num());
   #endif
 }
+*/
 int animation_num = 0;
 
 void movementAlgorithm(){
@@ -475,30 +506,30 @@ void setup() {
   //Load preloaded frames into objects.
   Serial.printf("transport_anim_frames pointer: %p \n", transport_anim_frames);
   Serial.printf("loop_frames pointer: %p \n", loop_frames);
-  for (size_t i = 0; i < transport_anim_count; i++)
+  /*for (size_t i = 0; i < transport_anim_count; i++)
   {
-    transport_anim_frames[i] = new Frame(transport_animation[i]);
-  }
-  once_anim = new Animation(transport_anim_frames, transport_anim_count);
+    transport_anim_frames[i] = new ROFrame(transport_animation[i]);
+  }*/
+  once_anim = new ROAnimation(transport_anim_frames, transport_anim_count);
   once_anim->write_playback_type(ONCE);
   once_anim->write_playback_dir(true);
   
   ram.run();
   report_ram();
-  /*
+  
   Serial.printf("transport_anim_frames pointer: %p \n", transport_anim_frames);
   Serial.printf("loop_frames pointer: %p \n", loop_frames);
-  for (size_t i = 0; i < loop_frames_count; i++)
+  /*for (size_t i = 0; i < loop_frames_count; i++)
   {
     loop_frames[i] = new Frame(loop_animation[i]);
-  }
+  }*/
   ram.run();
   report_ram();
-  loop_anim = new Animation(loop_frames, loop_frames_count);
+  loop_anim = new ROAnimation(loop_frames, loop_frames_count);
   loop_anim->write_max_loop_count(10);
   loop_anim->write_playback_type(LOOP_N_TIMES);
   loop_anim->write_playback_dir(true);
-  */
+  
   current_anim = once_anim;
   current_anim->start_animation();
   current_frame = current_anim->get_current_frame();  
