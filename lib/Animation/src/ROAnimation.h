@@ -21,7 +21,7 @@ const int COLS = ALL_COLS; //21; //The number of cols that are in use in the cur
 const int REGISTERS = ROWS;       // no of register series (indicating no of magnet-driver-PCBs connected to the Arduino)
 const int BYTES_PER_REGISTER = 4; // no of 8-bit shift registers in series per line (4 = 32 bits(/magnets))
 */
-const uint32_t empty_picture[COLS] PROGMEM = {0};
+const uint32_t empty_picture[COLS] PROGMEM = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 
 //Read only frame
 class ROFrame

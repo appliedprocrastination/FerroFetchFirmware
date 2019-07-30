@@ -50,7 +50,7 @@ unsigned long frame_period   = 1000/frame_rate; //ms
 //uint32_t prevMagnetState[COLS];
 //uint32_t currMagnetState[COLS];
 const int transport_anim_count = 20;
-const int loop_frames_count = 6;
+const int loop_frames_count = 14;
 
 const uint32_t transport_animation[transport_anim_count][COLS] PROGMEM = {
     {0, 0, 0, 0, 0, 0, 0,      0b1,        0,        0b1,         0,       0, 0, 0, 0, 0, 0, 0, 0},
@@ -64,10 +64,11 @@ const uint32_t transport_animation[transport_anim_count][COLS] PROGMEM = {
     {0, 0, 0, 0, 0, 0, 0,  0b10010,   0b1100,    0b10010,    0b1100,       0, 0, 0, 0, 0, 0, 0, 0},
     {0, 0, 0, 0, 0, 0, 0, 0b110110,   0b1001,   0b110110,    0b1001,       0, 0, 0, 0, 0, 0, 0, 0}, 
     {0, 0, 0, 0, 0, 0, 0, 0b100100,  0b11011,   0b100100,   0b11011,       0, 0, 0, 0, 0, 0, 0, 0},
-    {0, 0, 0, 0, 0, 0, 0,0b1101100,  0b10010,  0b1101100,   0b10110,       0, 0, 0, 0, 0, 0, 0, 0}, 
+    {0, 0, 0, 0, 0, 0, 0,0b1101100,  0b10010,  0b1101100,   0b10010,       0, 0, 0, 0, 0, 0, 0, 0}, 
     {0, 0, 0, 0, 0, 0, 0,0b1001000, 0b110110,  0b1001000,  0b110110,       0, 0, 0, 0, 0, 0, 0, 0}, 
     {0, 0, 0, 0, 0, 0, 0,0b1101100, 0b100100,  0b1001000,  0b100100,       0, 0, 0, 0, 0, 0, 0, 0}, 
     {0, 0, 0, 0, 0, 0, 0,0b1101100, 0b100100,  0b1001000, 0b1101100,       0, 0, 0, 0, 0, 0, 0, 0}, 
+    
     {0, 0, 0, 0, 0, 0, 0,0b0100100, 0b000000,  0b0000000, 0b1101100,       0, 0, 0, 0, 0, 0, 0, 0},
     {0, 0, 0, 0, 0, 0, 0,0b0100100, 0b000000,  0b0000000, 0b1001000,       0, 0, 0, 0, 0, 0, 0, 0},  
  
@@ -76,14 +77,22 @@ const uint32_t transport_animation[transport_anim_count][COLS] PROGMEM = {
     {0, 0, 0, 0, 0, 0, 0,0b0100100, 0b000000,  0b0000000, 0b1001000,       0, 0, 0, 0, 0, 0, 0, 0} 
 };
 
-
 const uint32_t loop_animation[loop_frames_count][COLS] PROGMEM = {
-    {0, 0, 0, 0, 0, 0, 0,0b0100100, 0b000000,  0b0000000, 0b1001000,       0, 0, 0, 0, 0, 0, 0, 0}, 
-    {0, 0, 0, 0, 0, 0, 0,0b0110100, 0b000100,  0b1000000, 0b1011000,       0, 0, 0, 0, 0, 0, 0, 0}, 
-    {0, 0, 0, 0, 0, 0, 0,0b0010000, 0b000100,  0b1000000, 0b0010000,       0, 0, 0, 0, 0, 0, 0, 0},
-    {0, 0, 0, 0, 0, 0, 0,0b0011000, 0b100100,  0b1000100, 0b0110000,       0, 0, 0, 0, 0, 0, 0, 0}, 
-    {0, 0, 0, 0, 0, 0, 0,0b0001000, 0b100000,  0b0000100, 0b0100000,       0, 0, 0, 0, 0, 0, 0, 0}, 
-    {0, 0, 0, 0, 0, 0, 0,0b0101100, 0b100000,  0b0000100, 0b1101000,       0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0b0100100, 0b0000000, 0b0000000, 0b1001000, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0b0110100, 0b0000100, 0b1000000, 0b1011000, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0b0010000, 0b0000100, 0b1000000, 0b0010000, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0b0011000, 0b1000100, 0b1000100, 0b0110000, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0b0001000, 0b1000000, 0b0000100, 0b0100000, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0b1001100, 0b1000000, 0b0000100, 0b1100100, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0b1000100, 0b0000000, 0b0000000, 0b1000100, 0, 0, 0, 0, 0, 0, 0, 0},
+
+    {0, 0, 0, 0, 0, 0, 0, 0b1100100, 0b0000100, 0b1000000, 0b1001100, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0b0100000, 0b0000100, 0b1000000, 0b0001000, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0b0110000, 0b1000100, 0b1000100, 0b0011000, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0b0010000, 0b1000000, 0b0000100, 0b0010000, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0b1011000, 0b1000000, 0b0000100, 0b0110100, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0b1001000, 0b0000000, 0b0000000, 0b0100100, 0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0b1101100, 0b0000000, 0b0000000, 0b1101100, 0, 0, 0, 0, 0, 0, 0, 0},
 };
 const ROFrame f1 PROGMEM = ROFrame(transport_animation[0]);
 const ROFrame f2 PROGMEM = ROFrame(transport_animation[1]);
@@ -112,9 +121,17 @@ const ROFrame l3 PROGMEM = ROFrame(loop_animation[2]);
 const ROFrame l4 PROGMEM = ROFrame(loop_animation[3]);
 const ROFrame l5 PROGMEM = ROFrame(loop_animation[4]);
 const ROFrame l6 PROGMEM = ROFrame(loop_animation[5]);
+const ROFrame l7 PROGMEM = ROFrame(loop_animation[6]);
+const ROFrame l8 PROGMEM = ROFrame(loop_animation[7]);
+const ROFrame l9 PROGMEM = ROFrame(loop_animation[8]);
+const ROFrame l10 PROGMEM = ROFrame(loop_animation[9]);
+const ROFrame l11 PROGMEM = ROFrame(loop_animation[10]);
+const ROFrame l12 PROGMEM = ROFrame(loop_animation[11]);
+const ROFrame l13 PROGMEM = ROFrame(loop_animation[12]);
+const ROFrame l14 PROGMEM = ROFrame(loop_animation[13]);
 
 const ROFrame *transport_anim_frames[transport_anim_count] PROGMEM = {&f1, &f2, &f3, &f4, &f5, &f6, &f7, &f8, &f9, &f10, &f11, &f12, &f13, &f15, &f16, &f17, &f18, &f19, &f20};
-const ROFrame *loop_frames[loop_frames_count] PROGMEM = {&l1,&l2,&l3,&l4,&l5,&l6} ;
+const ROFrame *loop_frames[loop_frames_count] PROGMEM = {&l1,&l2,&l3,&l4,&l5,&l6,&l7,&l8,&l9,&l10,&l11,&l12,&l13,&l14} ;
 //Preloaded animations
 ROAnimation* once_anim;
 ROAnimation* loop_anim;
@@ -398,51 +415,51 @@ void movementAlgorithm(){
     Serial.println(time_for_next_frame);
   #endif
   if(timeThisRefresh >= time_for_next_frame){
+    current_anim->goto_next_frame();
     if(current_anim->anim_done()){
       //TODO: Switch to new/next animation?
       //remember to use current_anim->start_animation() after loading the next animation
-      
+      Serial.printf("New Anim!\n");
+      animation_num++;
+      Serial.printf("Preparing Animation num: %d\n",animation_num);
       if(animation_num == 1){
-        Serial.printf("Preparing Animation num: %d",animation_num+1);
-        loop_anim->write_max_loop_count(10);
+        loop_anim->write_max_loop_count(2);
         loop_anim->write_playback_type(LOOP_N_TIMES);
         loop_anim->write_playback_dir(true);
 
         current_anim = loop_anim;
         current_anim->start_animation();
-        current_frame = current_anim->get_current_frame();
+        //current_frame = current_anim->get_current_frame();
         
       }
       else if (animation_num == 2)
       {
-        Serial.printf("Preparing Animation num: %d", animation_num + 1);
-        loop_anim->write_max_loop_count(10);
+        //Serial.printf("Preparing Animation num: %d\n", animation_num + 1);
+        loop_anim->write_max_loop_count(2);
         loop_anim->write_playback_type(LOOP_N_TIMES);
         loop_anim->write_playback_dir(false);
 
         current_anim = loop_anim;
         current_anim->start_animation();
-        current_frame = current_anim->get_current_frame();
+        //current_frame = current_anim->get_current_frame();
         
       }
       else if (animation_num == 3)
       {
-        Serial.printf("Preparing Animation num: %d", animation_num + 1);
+        //Serial.printf("Preparing Animation num: %d\n", animation_num + 1);
         once_anim->write_playback_type(ONCE);
-        once_anim->write_playback_dir(true);
+        once_anim->write_playback_dir(false);
 
         current_anim = once_anim;
-        current_anim->start_animation();
-        current_frame = current_anim->get_current_frame();
+        current_anim->start_animation(transport_anim_count-1);
+        //current_frame = current_anim->get_current_frame();
         
       }
-      animation_num++;
     }
     if(animation_mode != PRELOADED_ANIMATION){
       //TODO: handle incoming changes
       //(or should this be done more often than once per frame? That would slow down the shifting)
     }
-    current_anim->goto_next_frame();
 
     Serial.print("Preparing Frame: ");
     Serial.print(current_anim->get_current_frame_num());

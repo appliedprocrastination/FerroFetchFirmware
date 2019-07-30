@@ -212,7 +212,7 @@ bool ROAnimation::get_playback_dir()
 
 bool ROAnimation::anim_done()
 {
-    if(_playback_state == IDLE){
+    if(_current_frame == -1){
         return true;
     }
     return false;
