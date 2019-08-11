@@ -1,33 +1,52 @@
 #include "Animation.h"
+#include "SdFat.h"
+#include "FreeStack.h"
+#include "RamMonitor.h"
+#include "csv_helpers.h"
 
-uint32_t empty_picture[COLS] = {0};
 
+SdFatSdioEX sd;
+File sdFile;
 //Constructor
-Frame::Frame(uint32_t *picture, uint8_t **duty_cycle, int cols, int rows)
+Frame::Frame(uint32_t *picture, bool alloced_picture, uint8_t *duty_cycle, bool alloced_duty, int cols, int rows)
 {
     _cols = cols;
     _rows = rows;
-
     if (duty_cycle == nullptr)
     {
-        _duty_cycle = new uint8_t *[cols];
-        for (int col = 0; col < cols; col++)
-        {
-            _duty_cycle[col] = new uint8_t[rows];
-            for (int row = 0; row < rows; row++)
-            {
-                _duty_cycle[col][row] = (uint8_t)DUTY_CYCLE_RESOLUTION;
-            }
+        Serial.printf("Starting duty cycle malloc\n");
+        int tolerance = 10000;
+        if((FreeStack() < (_cols*_rows + tolerance))){
+            Serial.printf("Failed to initialize frame with duty_cycle array of size: %d\n"
+            "Available space in RAM: %d\n", _cols*_rows, FreeStack());
+            return;
         }
-    }
-    else
-    {
-        _duty_cycle = duty_cycle;
-        for (int x = 0; x < cols; x++)
+        Serial.printf("Initializing frame with duty_cycle array of size: %d\n"
+            "Available space in RAM: %d\n", _cols*_rows, FreeStack());
+
+        _malloced_duty = true;
+        _duty_cycle = new uint8_t [cols*rows];
+        for (int row = 0; row < rows; row++)
         {
-            for (int y = 0; y < rows; y++)
+            Serial.printf("row:%d,    ",row);
+            //_duty_cycle[col] = new uint8_t[rows];
+            for (int col = 0; col < cols; col++)
             {
-                if (duty_cycle[x][y] < DUTY_CYCLE_RESOLUTION)
+                Serial.printf("Col:%d,",col);
+                _duty_cycle[row*cols + col] = (uint8_t)DUTY_CYCLE_RESOLUTION;
+            }
+            Serial.println();
+        }
+    }else
+    {
+        Serial.printf("Starting to fill duty cycle from %s array at: %p", alloced_duty?"dynamically allocated":"static",duty_cycle);
+        _malloced_duty = alloced_duty;
+        _duty_cycle = duty_cycle;
+        for (int y = 0; y < rows; y++)
+        {
+            for (int x = 0; x < cols; x++)
+            {
+                if (duty_cycle[x*cols + y] < DUTY_CYCLE_RESOLUTION)
                 {
                     pwm_pixels_x.push_back(x);
                     pwm_pixels_y.push_back(y);
@@ -39,10 +58,12 @@ Frame::Frame(uint32_t *picture, uint8_t **duty_cycle, int cols, int rows)
     if (picture == nullptr)
     {
         _picture = new uint32_t[cols];
+        _malloced_picture = true;
     }
     else
     {
         _picture = picture;
+        _malloced_picture = alloced_picture;
     }
 }
 Frame::~Frame()
@@ -56,10 +77,12 @@ void Frame::delete_frame(void)
     pwm_pixels_x.clear();
     pwm_pixels_x.shrink_to_fit();
     pwm_pixels_y.clear();
-    pwm_pixels_y.shrink_to_fit();
+    pwm_pixels_y.shrink_to_fit(); 
     //TODO: Is the above necessary?
-    _delete_duty_cycle();
-    _delete_picture();
+    if(_malloced_duty)
+        _delete_duty_cycle();
+    if(_malloced_picture)
+        _delete_picture();
 }
 uint32_t *Frame::get_picture()
 {
@@ -69,19 +92,20 @@ uint32_t Frame::get_picture_at(int x)
 {
     return _picture[x];
 }
-uint8_t **Frame::get_duty_cycle()
+uint8_t *Frame::get_duty_cycle()
 {
     return _duty_cycle;
 }
 uint8_t Frame::get_duty_cycle_at(int x, int y)
 {
-    return _duty_cycle[x][y];
+    return _duty_cycle[y*_cols + x];
 }
 
-void Frame::overwrite_duty_cycle(uint8_t **duty_cycle)
+void Frame::overwrite_duty_cycle(uint8_t *duty_cycle,bool alloced_duty)
 {
     _delete_duty_cycle();
     _duty_cycle = duty_cycle;
+    _malloced_duty = alloced_duty;
 }
 
 void Frame::write_duty_cycle_at(int x, int y, uint8_t duty_cycle)
@@ -91,7 +115,7 @@ void Frame::write_duty_cycle_at(int x, int y, uint8_t duty_cycle)
         duty_cycle = DUTY_CYCLE_RESOLUTION;
     }
 
-    if ((duty_cycle == DUTY_CYCLE_RESOLUTION) && (_duty_cycle[x][y] != DUTY_CYCLE_RESOLUTION))
+    if ((duty_cycle == DUTY_CYCLE_RESOLUTION) && (_duty_cycle[x + y*_cols] != DUTY_CYCLE_RESOLUTION))
     {
         //The coordinate is already stored in the pwm_pixels vectors,
         //but the new value is not a PWM value, so the coord. must be removed
@@ -105,7 +129,7 @@ void Frame::write_duty_cycle_at(int x, int y, uint8_t duty_cycle)
             }
         }
     }
-    else if ((duty_cycle < DUTY_CYCLE_RESOLUTION) && (duty_cycle > 0) && (_duty_cycle[x][y] == DUTY_CYCLE_RESOLUTION))
+    else if ((duty_cycle < DUTY_CYCLE_RESOLUTION) && (duty_cycle > 0) && (_duty_cycle[x + y*_cols] == DUTY_CYCLE_RESOLUTION))
     {
         //The coordinates are not stored in the pwm_pixels vectors
         pwm_pixels_x.push_back(x);
@@ -116,12 +140,13 @@ void Frame::write_duty_cycle_at(int x, int y, uint8_t duty_cycle)
         //duty_cycle is either max or minimum (or see next line), no need to check for those values in the refresh screen routine.
         //the third possibility is that the coordinate is already stored in the pwm_pixels vectors, so no need to add them.
     }
-    _duty_cycle[x][y] = duty_cycle;
+    _duty_cycle[x + y*_cols] = duty_cycle;
 }
-void Frame::write_picture(uint32_t *picture)
+void Frame::write_picture(uint32_t *picture, bool alloced_picture)
 {
     _delete_picture();
     _picture = picture;
+    _malloced_picture = alloced_picture;
 }
 
 void Frame::write_pixel(int x, int y, bool state)
@@ -147,16 +172,18 @@ void Frame::clear_pixel(int x, int y)
 // Private Methods
 inline void Frame::_delete_picture()
 {
-    delete _picture;
+    if(_malloced_picture){
+        delete _picture;
+        _malloced_picture = false;
+    }
 }
 
 inline void Frame::_delete_duty_cycle()
 {
-    for (int col = 0; col < _cols; col++)
-    {
-        delete _duty_cycle[col];
+    if (_malloced_duty){
+        delete _duty_cycle;
+        _malloced_duty = false;
     }
-    delete _duty_cycle;
 }
 
 //Constructor
@@ -165,7 +192,6 @@ Animation::Animation(Frame **frames, int num_frames, int cols, int rows)
     _num_frames = num_frames;
     _cols = cols;
     _rows = rows;
-
     if (frames == nullptr)
     {
         _frames = new Frame *[num_frames];
@@ -175,10 +201,9 @@ Animation::Animation(Frame **frames, int num_frames, int cols, int rows)
         }
     }
     else
-    {
+    {    
         _frames = frames;
     }
-    _blank_frame = Frame(empty_picture);
 }
 
 // Public Methods
@@ -189,6 +214,8 @@ void Animation::delete_anim(void)
         _frames[frame]->delete_frame();
     }
     delete _frames;
+    delete _frame_buf;
+    delete _duty_buf;
 }
 
 Frame *Animation::get_frame(int frame_num)
@@ -199,14 +226,15 @@ void Animation::write_frame(int frame_num, Frame *frame)
 {
     _frames[frame_num] = frame;
 }
-void Animation::load_frames_from_array(uint32_t **animation, uint8_t ***duty_cycle)
+void Animation::load_frames_from_array(uint32_t **animation, bool alloced_animation, uint8_t **duty_cycle, bool alloced_duty)
 {
+    //TODO: This method has not been properly adjusted to new variant of duty_cycle storage
     for (int frame = 0; frame < _num_frames; frame++)
     {
-        _frames[frame]->write_picture(animation[frame]);
+        _frames[frame]->write_picture(animation[frame],alloced_animation);
         if (duty_cycle != nullptr)
         {
-            _frames[frame]->overwrite_duty_cycle(duty_cycle[frame]);
+            _frames[frame]->overwrite_duty_cycle(duty_cycle[frame],alloced_duty);
         }
     }
 }
@@ -325,6 +353,333 @@ void Animation::write_playback_type(PlaybackType type){
 }
 PlaybackType Animation::get_playback_type(){
     return _playback_type;
+}
+
+/*\brief Saves two corresponding files to the SD card.
+    One that provides info about the animation settings, the other who contains the actual data.
+    filename format: "A000_C.txt" for config files
+    filename format: "A000_D.bin" for data files
+    
+    \param[in] file_index is a maximum 5 digit number that will be added to the filename. 
+        If the number is not unique, the previous file (with the same index) will be overwritten.
+ */
+int Animation::save_to_SD_card(uint16_t file_index){
+    if(!sd.begin()){
+        Serial.println("SD initialitization failed. Save unsucessful.");
+        return -1;
+    }
+    //Write ASCII config file:
+    //(Using ASCII here because we as users are more likely to 
+    // change these parameters manually than the animation itself.
+    // The animation will mainly be updated through a GUI program)
+    //filename format: "A000_C.txt" for config files
+    //filename format: "A000_D.bin" for data files
+    const int cfg_len = 150;
+    const int cols = _cols;
+    const int rows = _rows;
+    const int frames = _num_frames;
+    static char config_str[cfg_len]; //The data that will be written to the .txt file
+    uint32_t frame_buf[frames*cols];
+    uint8_t duty_buf[frames*cols*rows];
+
+    char full_filename[11]; //Max length of filename is 8 chars +".ext"
+    sprintf(full_filename,"A%u_C.txt",file_index);
+    if (!sdFile.open(full_filename, O_RDWR | O_CREAT)) {
+        Serial.printf("open file: '%s' failed\n",full_filename);
+        sd.errorHalt("open failed");
+        return -1;
+    }
+    sprintf(config_str,"%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d",
+        _cols,
+        _rows,
+        _num_frames,
+        _playback_type,
+        _playback_state,
+        _dir_fwd ? 1:0,
+        _current_frame,
+        _prev_frame,
+        _loop_iteration,
+        _max_iterations,
+        _start_idx);
+    sdFile.write(config_str);
+    //sdFile.write(transport_animation, transport_anim_count*COLS*4);
+    sdFile.flush();
+    sdFile.close();
+    Serial.printf("Config-file saved to SD card as: '%s'.\n",full_filename);
+
+    //Write binary datafile:
+    sprintf(full_filename,"A%u_D.bin",file_index);
+
+    if (!sdFile.open(full_filename, O_RDWR | O_CREAT)) {
+        Serial.printf("open file: '%s' failed\n",full_filename);
+        sd.errorHalt("open failed");
+        return -1;
+    }
+    //Fill buffers:
+    for (int f = 0; f < frames; f++)
+    {
+        Frame *curr_f = get_frame(f);
+        for (int r = 0; r < rows; r++)
+        {
+            for (int c = 0; c < cols; c++)
+            {
+                duty_buf[(f*cols*rows)+(r*cols)+c] = curr_f->get_duty_cycle_at(c,r);
+                if(r==0)
+                    frame_buf[(f*cols)+c] = curr_f->get_picture_at(c);            
+            }
+        }
+    }
+    
+    uint8_t* framebuf8 = (uint8_t*) frame_buf;
+    sdFile.write(framebuf8,frames*cols*sizeof(uint32_t)); //*4 because the buffer is uint32_t
+    sdFile.flush();
+    sdFile.write(duty_buf,frames*cols*rows);
+    sdFile.flush();
+
+    /*
+    Serial.printf("Frame buffer before save:\n");
+    for(int f = 0; f<frames;f++){
+        for (int c = 0; c < cols; c++)
+        {
+            Serial.printf("[frame:%2d,col:%2d]:0x%8lx\n",f, c, frame_buf[(f*cols)+c]);
+            delay(300);
+        }
+        
+    }
+    */
+
+    
+    Serial.printf("Duty buffer before save:\n");
+    for(int f = 0; f<frames;f++){
+        for (int r = 0; r < rows; r++)
+        {
+            Serial.printf("%8lp, [frame:%2d,row:%2d]:",&duty_buf[(f*cols*rows)+(r*cols)], f,r);
+            for (int c = 0; c < cols; c++)
+            {
+                Serial.printf("0x%2x,", duty_buf[(f*cols*rows)+(r*cols)+c]);
+            }
+            Serial.println();
+        }
+    }
+
+    sdFile.close();
+    Serial.printf("Data-file saved to SD card as: '%s'.\n",full_filename);
+    
+    Serial.println("Save sucessful.");
+    return 1;
+}
+
+
+RamMonitor ram2;
+void report_ram_stat2(const char *aname, uint32_t avalue)
+{
+  // Code from RamMonitorExample.cpp
+  // copyright Adrian Hunt (c) 2015 - 2016
+  Serial.print(aname);
+  Serial.print(": ");
+  Serial.print((avalue + 512) / 1024);
+  Serial.print(" Kb (");
+  Serial.print((((float)avalue) / ram2.total()) * 100, 1);
+  Serial.print("% of ");
+  Serial.print((ram2.total()+512)/1024 );
+  Serial.println(" Kb)");
+};
+
+void report_ram2()
+{ 
+    // Code from RamMonitorExample.cpp
+    // copyright Adrian Hunt (c) 2015 - 2016
+    bool lowmem;
+    bool crash;
+
+    Serial.println("==== memory report ====");
+    Serial.printf("heapsize: %d\n",ram2.heap_used());
+    Serial.printf("heapfree: %d\n",ram2.heap_free());
+    Serial.printf("heaptotal: %d\n",ram2.heap_total());
+    Serial.printf("stacksize: %d\n",ram2.stack_used());
+    Serial.printf("stackfree: %d\n",ram2.stack_free());
+    Serial.printf("stacktotal: %d\n",ram2.stack_total());
+    Serial.printf("totalfree: %d\n",ram2.free());
+    Serial.printf("total: %d\n",ram2.total());
+    report_ram_stat2("free", ram2.adj_free());
+    report_ram_stat2("stack", ram2.stack_total());
+    report_ram_stat2("heap", ram2.heap_total());
+
+    lowmem = ram2.warning_lowmem();
+    crash = ram2.warning_crash();
+    if (lowmem || crash)
+    {
+        Serial.println();
+
+        if (crash)
+        Serial.println("**warning: stack and heap crash possible");
+        else if (lowmem)
+        Serial.println("**warning: unallocated memory running low");
+    };
+
+    Serial.println();
+};
+
+int Animation::read_from_SD_card(uint16_t file_index){
+    if(!sd.begin()){
+        Serial.println("SD initialitization failed. Read unsucessful.");
+        return -1;
+    }
+    Serial.printf("numframes:%d\n",_num_frames);
+
+    //Clear memory of old frames
+    for (int i = 0; i < _num_frames; i++)
+    {
+        Serial.printf("i:%d\n",i);
+        _frames[i]->delete_frame();
+    }
+    delete _frames;
+    
+    //Read ASCII config file:
+    //(Using ASCII here because we as users are more likely to 
+    // change these parameters manually than the animation itself.
+    // The animation will mainly be updated through a GUI program)
+    //filename format: "A000_C.txt" for config files
+    //filename format: "A000_D.bin" for data files
+
+    char full_filename[11]; //Max length of filename is 8 chars +".ext"
+    sprintf(full_filename,"A%u_C.txt",file_index);
+    if (!sdFile.open(full_filename, O_RDONLY)) {
+        Serial.printf("open file: '%s' failed\n",full_filename);
+        sd.errorHalt("open failed");
+        return -1;
+    }
+    char delim = ',';
+    csvReadInt(&sdFile,&_cols,delim);
+    csvReadInt(&sdFile,&_rows,delim);
+    csvReadInt(&sdFile,&_num_frames,delim);
+    csvReadPBType(&sdFile,&_playback_type,delim);
+    csvReadPBState(&sdFile,&_playback_state,delim);
+    csvReadBool(&sdFile,&_dir_fwd,delim);
+    csvReadInt(&sdFile,&_current_frame,delim);
+    csvReadInt(&sdFile,&_prev_frame,delim);
+    csvReadInt(&sdFile,&_loop_iteration,delim);
+    csvReadInt(&sdFile,&_max_iterations,delim);
+    csvReadInt(&sdFile,&_start_idx,delim);
+    
+    sdFile.close();
+    Serial.printf("Config-file read from SD card: '%s'.\n",full_filename);
+
+    //Read binary datafile:
+    int tolerance = 10000;
+    if(!(FreeStack() > (int)(_num_frames*_cols*sizeof(uint32_t) + _num_frames*_cols*_rows + tolerance))){
+        Serial.printf("Not enough memory to store animation of size: %d\n"
+        "Available space in RAM: %d", _num_frames*_cols*4 + _num_frames*_cols*_rows, FreeStack());
+        return -2;
+    }
+    const int cols = _cols;
+    const int rows = _rows;
+    const int frames = _num_frames;
+    uint8_t* frame_buf8 = new uint8_t[frames*cols*sizeof(uint32_t)];
+    if (frame_buf8 == 0)
+    {
+        Serial.printf("Could not allocate memory for frames of size: %d\n"
+        "Available space in RAM: %d",frames*cols*sizeof(uint32_t), FreeStack());
+    }
+    
+    _frame_buf = (uint32_t*) frame_buf8;
+    
+    _duty_buf = new uint8_t[frames*cols*rows*sizeof(uint8_t)];
+    if (&_duty_buf[0] == 0 || _duty_buf == 0 || _duty_buf == (uint8_t*) nullptr || &_duty_buf[0] == (uint8_t*) nullptr || _duty_buf == nullptr || &_duty_buf[0] == nullptr || _duty_buf == NULL || &_duty_buf[0] == NULL ||&_duty_buf[0] ==(uint8_t *) 0 || _duty_buf == (uint8_t *)0 )
+    {
+        Serial.printf("Could not allocate memory for duty_cycle arr of size: %d\n"
+        "Available space in RAM: %d\n",frames*cols*rows, FreeStack());
+
+        ram2.initialize();
+        ram2.run();
+        Serial.printf("Pointer to _duty_buf: %8p,%d\n",_duty_buf,_duty_buf);
+        Serial.printf("Pointer to _frame_buf: %p\n",_frame_buf);
+        report_ram2();
+
+        delay(100000);
+        return-1;
+    }else{
+        
+        ram2.initialize();
+        ram2.run();
+
+        Serial.printf("Pointer to _duty_buf: %p,%d\n",_duty_buf,_duty_buf);
+        Serial.printf("Pointer to _frame_buf: %p\n",_frame_buf);
+        report_ram2();
+
+        delay(10000);
+    }
+    sprintf(full_filename,"A%u_D.bin",file_index);
+    if (!sdFile.open(full_filename, O_RDONLY)) {
+        Serial.printf("open file: '%s' failed\n",full_filename);
+        sd.errorHalt("open failed");
+        return -1;
+    }
+    
+    int bytes = sdFile.read(frame_buf8,frames*cols*sizeof(uint32_t));
+    int bytes2 = sdFile.read(_duty_buf,frames*cols*rows);
+    Serial.printf("bytes read to frame buffer:%d\n", bytes);
+    Serial.printf("bytes read to duty buffer:%d\n", bytes2);  
+    Serial.printf("Pointer to _duty_buf after read: %p,%d\n",_duty_buf,_duty_buf);
+    Serial.printf("Pointer to _frame_buf after read: %p\n",_frame_buf);
+    delay(10000);
+
+    /*Serial.printf("Frame buffer after read:\n");
+    for(int f = 0; f<frames;f++){
+        for (int c = 0; c < cols; c++)
+        {
+            Serial.printf("[frame:%2d,col:%2d]:0x%8lx\n",f, c, _frame_buf[(f*cols)+c]);
+        }
+        
+    }*/
+    Serial.printf("Duty buffer after read:\n");
+    for(int f = 0; f<frames;f++){
+        for (int r = 0; r < rows; r++){
+            Serial.printf("%8lp, [frame:%2d,row:%2d]:",&_duty_buf[(f*cols*rows)+(r*cols)], f,r);
+            for (int c = 0; c < cols; c++)
+            {
+                Serial.printf("0x%2x,", _duty_buf[(f*cols*rows)+(r*cols)+c]);
+            }
+            Serial.println();
+        }
+    }
+    delay(500);
+    _frames = new Frame *[frames];
+    Serial.printf("frames:%d,cols:%d,rows:%d\n",frames,cols,rows);
+    for (int frame = 0; frame < frames; frame++)
+    {
+        Serial.printf("Frame:%d, based on %x, %d\n",frame,_frame_buf[frame*cols],_duty_buf[frame*cols*rows]);
+        //The arrays sent to the frame constructor are marked as NOT dynamically allocated (even though they are)
+        //This is because the "delete" will be handled by the animation object, and should therefore not be performed by the frame object.
+        _frames[frame] = new Frame(&_frame_buf[frame*cols],false,&_duty_buf[frame*cols*rows],false); 
+    }
+    
+    delay(5000);
+    /* The below was needed when duty_cycle was stored differently in this method and in the frame object.
+    Therefore it should now be irrelevant because we have changed how the Frame object stores duty cycles
+    //Fill buffers:
+    for (int f = 0; f < frames; f++)
+    {
+        Frame *curr_f = get_frame(f);
+        for (int c = 0; c < cols; c++)
+        {
+            for (int r = 0; r < rows; r++)
+            {
+                //TODO: Write a method for Frame that can reuse this buffer instead of copying all values.
+                Serial.printf("x:%d,y:%d,val:%d\n",c,r,_duty_buf[f*cols*rows + c*rows + r]);
+                curr_f->write_duty_cycle_at(c,r,_duty_buf[f*cols*rows + c*rows + r]);
+            }          
+        }
+    }*/
+
+    sdFile.flush();
+    sdFile.close();
+    Serial.printf("Data-file: '%s' read from SD card.\n",full_filename);
+    
+        
+
+    Serial.println("Read sucessful.");
+    return 1;
 }
 
 // Private Methods

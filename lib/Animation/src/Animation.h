@@ -20,20 +20,21 @@ const int COLS = ALL_COLS; //21; //The number of cols that are in use in the cur
 const int REGISTERS = ROWS;       // no of register series (indicating no of magnet-driver-PCBs connected to the Arduino)
 const int BYTES_PER_REGISTER = 4; // no of 8-bit shift registers in series per line (4 = 32 bits(/magnets))
 
+static uint32_t empty_pic[COLS] = {0};
 
 class Frame
 {
 public:
-    Frame(uint32_t *picture = nullptr, uint8_t **duty_cycle = nullptr, int cols = COLS, int rows = ROWS);
+    Frame(uint32_t *picture = nullptr, bool alloced_picture=false, uint8_t *duty_cycle = nullptr, bool alloced_duty=false, int cols = COLS, int rows = ROWS);
     ~Frame();
     void        delete_frame(void);
     uint32_t*   get_picture();
     uint32_t    get_picture_at(int x);
-    uint8_t**   get_duty_cycle();
+    uint8_t*   get_duty_cycle();
     uint8_t     get_duty_cycle_at(int x, int y);
-    void overwrite_duty_cycle(uint8_t** duty_cycle);
+    void overwrite_duty_cycle(uint8_t* duty_cycle, bool alloced_duty);
     void write_duty_cycle_at(int x, int y, uint8_t duty_cycle);
-    void write_picture(uint32_t *picture);
+    void write_picture(uint32_t *picture, bool alloced_picture);
     void write_pixel(int x, int y, bool state);
     void set_pixel(int x, int y);
     void clear_pixel(int x, int y);
@@ -45,8 +46,11 @@ private:
     int         _cols;
     int         _rows;
 
-    uint8_t **  _duty_cycle;
+    uint8_t  *  _duty_cycle;
     uint32_t *  _picture;
+
+    bool _malloced_picture = false;
+    bool _malloced_duty = false;
 
     void _delete_picture();
     void _delete_duty_cycle();
@@ -67,6 +71,8 @@ enum PlaybackState
     ERROR
 };
 
+static Frame blank_frame = Frame(empty_pic);
+
 class Animation
 {
 public:
@@ -74,7 +80,7 @@ public:
     void    delete_anim(void);
     Frame*  get_frame(int frame_num);
     void    write_frame(int frame_num, Frame* frame);
-    void    load_frames_from_array(uint32_t** animation, uint8_t*** duty_cycle = nullptr);
+    void    load_frames_from_array(uint32_t** animation, bool alloced_animation=false, uint8_t** duty_cycle = nullptr, bool alloced_duty=false);
     int     get_current_frame_num();
     void    goto_next_frame();
     void    goto_prev_frame();
@@ -89,6 +95,9 @@ public:
     bool    anim_done();
     void    write_playback_type(PlaybackType type);
     PlaybackType get_playback_type();
+
+    int    save_to_SD_card(uint16_t file_index);
+    int    read_from_SD_card(uint16_t file_index);
 
 private:
     int             _cols;
@@ -107,10 +116,15 @@ private:
     
 
     Frame         **_frames;
-    Frame           _blank_frame; //used as return statement when playback_state is DONE
+    Frame           _blank_frame = blank_frame; //used as return statement when playback_state is DONE
     int             _get_next_frame_idx();
     int             _get_prev_frame_idx();
     bool            _current_frame_is_on_edge();
+
+    //Pointers to the SD buffers are stored here so they can be free'd when the object is deleted
+    //TODO: Can these be left non-volatile?
+    uint8_t  *_duty_buf;
+    uint32_t *_frame_buf;
 };
 
 #endif
