@@ -76,7 +76,7 @@ static Frame blank_frame = Frame(empty_pic);
 class Animation
 {
 public:
-    Animation(Frame **frames = nullptr, int num_frames = 2, int cols = COLS, int rows = ROWS);
+    Animation(Frame **frames = nullptr, int num_frames = 2, bool alloced_frames = false, bool alloced_frame_array = false, int cols = COLS, int rows = ROWS);
     void    delete_anim(void);
     Frame*  get_frame(int frame_num);
     void    write_frame(int frame_num, Frame* frame);
@@ -113,7 +113,9 @@ private:
     int             _loop_iteration = 0;
     int             _max_iterations = -1;
     int             _start_idx = 0; //Where the animation started (not necessarily first index in array)
-    
+
+    bool            _malloced_frames = false;
+    bool            _malloced_frame_array = false;
 
     Frame         **_frames;
     Frame           _blank_frame = blank_frame; //used as return statement when playback_state is DONE
@@ -123,8 +125,8 @@ private:
 
     //Pointers to the SD buffers are stored here so they can be free'd when the object is deleted
     //TODO: Can these be left non-volatile?
-    uint8_t  *_duty_buf;
-    uint32_t *_frame_buf;
+    uint8_t  *_duty_buf = nullptr;
+    uint32_t *_frame_buf = nullptr;
 };
 
 #endif

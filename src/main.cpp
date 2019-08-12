@@ -4,9 +4,9 @@
 #include "Animation.h"
 #include "debug.h"
 #include "RamMonitor.h"
-#include "FreeStack.h"
+//#include "FreeStack.h"
 
-#define PWM_PERIOD_INDICATOR 32
+#define PWM_PERIOD_INDICATOR 32 //Indicator pin used by logic analyzer to measure PWM frequency
 
 const bool DEBUG = true;
 int counter = 0;                //debugvariables
@@ -50,17 +50,18 @@ unsigned long frame_period   = 1000/frame_rate; //ms
 //States
 //uint32_t prevMagnetState[COLS];
 //uint32_t currMagnetState[COLS];
-//const int transport_anim_count = 20;
-const int transport_anim_count = 2;
+const int transport_anim_count = 20;
+//const int transport_anim_count = 2;
 
 Frame *  transport_anim_frames[transport_anim_count];
 const int loop_frames_count = 14;
 Frame *loop_frames[loop_frames_count];
+/*
 uint32_t transport_animation[transport_anim_count][COLS] = {
     {0xa1b2c3d4, 1, 1, 1, 1, 1, 1,     1,        1,        1,         1,       1, 1, 1, 1, 1, 1, 1, 0xf1e2d3c4},
     {0xa2b3c4d5, 1, 1, 1, 1, 1, 1,     1,        1,        1,         1,       1, 1, 1, 1, 1, 1, 1, 0xf2e3d4c5},
 };
-/*
+*/
 uint32_t transport_animation[transport_anim_count][COLS] = {
     {0xff, 0, 0, 0, 0, 0, 0,      0b1,        0,        0b1,         0,       0, 0, 0, 0, 0, 0, 0, 0xee},
     {0xff, 0, 0, 0, 0, 0, 0,     0b11,        0,       0b11,         0,       0, 0, 0, 0, 0, 0, 0, 0xee},
@@ -84,9 +85,9 @@ uint32_t transport_animation[transport_anim_count][COLS] = {
     {0xff, 0, 0, 0, 0, 0, 0,0b0100100, 0b000000,  0b0000000, 0b1001000,       0, 0, 0, 0, 0, 0, 0, 0xee}, 
     {0xff, 0, 0, 0, 0, 0, 0,0b0100100, 0b000000,  0b0000000, 0b1001000,       0, 0, 0, 0, 0, 0, 0, 0xee}, 
     {0xff, 0, 0, 0, 0, 0, 0,0b0100100, 0b000000,  0b0000000, 0b1001000,       0, 0, 0, 0, 0, 0, 0, 0xee} 
-};*/
+};
 
-/*
+
 uint32_t loop_animation[loop_frames_count][COLS] = {
     {0, 0, 0, 0, 0, 0, 0, 0b0100100, 0b0000000, 0b0000000, 0b1001000, 0, 0, 0, 0, 0, 0, 0, 0},
     {0, 0, 0, 0, 0, 0, 0, 0b0110100, 0b0000100, 0b1000000, 0b1011000, 0, 0, 0, 0, 0, 0, 0, 0},
@@ -103,10 +104,10 @@ uint32_t loop_animation[loop_frames_count][COLS] = {
     {0, 0, 0, 0, 0, 0, 0, 0b1011000, 0b1000000, 0b0000100, 0b0110100, 0, 0, 0, 0, 0, 0, 0, 0},
     {0, 0, 0, 0, 0, 0, 0, 0b1001000, 0b0000000, 0b0000000, 0b0100100, 0, 0, 0, 0, 0, 0, 0, 0},
     {0, 0, 0, 0, 0, 0, 0, 0b1101100, 0b0000000, 0b0000000, 0b1101100, 0, 0, 0, 0, 0, 0, 0, 0},
-};*/
+};
 //Preloaded animations
 Animation* once_anim;
-//Animation* loop_anim;
+Animation* loop_anim;
 
 //uint32_t dynamic_animation;
 Animation* current_anim;
@@ -400,18 +401,18 @@ void movementAlgorithm(){
       animation_num++;
       Serial.printf("Preparing Animation num: %d\n",animation_num);
       if(animation_num == 1){
-        /*loop_anim->write_max_loop_count(5);
+        loop_anim->write_max_loop_count(5);
         loop_anim->write_playback_type(LOOP_N_TIMES);
         loop_anim->write_playback_dir(true);
 
         current_anim = loop_anim;
         current_anim->start_animation();
         current_frame = current_anim->get_current_frame();
-        */
+        
       }
       else if (animation_num == 2)
       {
-        /*
+        
         loop_anim->write_max_loop_count(5);
         loop_anim->write_playback_type(LOOP_N_TIMES);
         loop_anim->write_playback_dir(false);
@@ -419,7 +420,6 @@ void movementAlgorithm(){
         current_anim = loop_anim;
         current_anim->start_animation();
         current_frame = current_anim->get_current_frame();
-         */
         
       }
       else if (animation_num == 3)
@@ -445,8 +445,8 @@ void movementAlgorithm(){
     Serial.println();
 
     current_frame = current_anim->get_current_frame();
-    ram.run();
-    report_ram();
+    //ram.run();
+    //report_ram();
     /*
     if(current_anim->get_current_frame_num() == -1){
       Serial.printf("Presumably empty frame:");
@@ -509,74 +509,39 @@ void setup() {
   report_ram();
   //Load preloaded frames into objects.
   
-  
   for (size_t i = 0; i < transport_anim_count; i++)
   {
     transport_anim_frames[i] = new Frame(transport_animation[i]);
   }
 
-  once_anim = new Animation(transport_anim_frames,transport_anim_count);
+  once_anim = new Animation(transport_anim_frames,transport_anim_count,true,false);
   once_anim->write_playback_type(ONCE); 
   once_anim->write_playback_dir(true);
+  //once_anim->save_to_SD_card(1);
 
-  for (int f = 0; f < transport_anim_count; f++)
-  {
-    Frame* frame = once_anim->get_frame(f);
-    Serial.printf("Frame: %d\n",f);
-    for (int y = 0; y < ROWS; y++)
-    {
-      Serial.printf("y: %d\n",y);
-      frame->write_duty_cycle_at(0,y,4); //First value in each row (except first row) will be 4
-    }
-    frame->write_duty_cycle_at(0,0,1); //first value in each frame will be 1
-  }
+  /*
   once_anim->save_to_SD_card(99);
   once_anim->write_playback_type(LOOP); //Set to something other than what's in the file being read below to validate that it's being overwritten
   once_anim->write_playback_dir(false); //Set to something other than what's in the file being read below to validate that it's being overwritten
   once_anim->read_from_SD_card(99);
   Serial.printf("Type: %d (LOOP = %d)\n",(int)once_anim->get_playback_type(),(int) LOOP);
   Serial.printf("Dir: %d (backwards = %d)\n",(int)once_anim->get_playback_dir(),(int)false);
-  /*
-  Serial.printf("First frame, first column: %lu \n",transport_animation[0][0]);
-  Serial.printf("Last frame, last column: %lu \n",transport_animation[19][18]);
-  sdFile.write(transport_animation, transport_anim_count*COLS*4);
-  sdFile.flush();
-  sdFile.close();
-  Serial.println("File saved to SD card.");
-  for (size_t i = 0; i < transport_anim_count; i++)
-  {
-    //transport_anim_frames[i] = new Frame(transport_animation[i]);
-    for (size_t col = 0; col < COLS; col++)
-    {
-      transport_animation[i][col] = 0; //Zero out for testing the read operation below
-    }
-  }
-  Serial.println("Buffer cleared.");
-  Serial.printf("First frame, first column: %lu \n",transport_animation[0][0]);
-  Serial.printf("Last frame, last column: %lu \n",transport_animation[19][18]);
-
-  sdFile.open("A03.bin", O_RDONLY);
-  sdFile.read(transport_animation,transport_anim_count*COLS*4);
-  sdFile.close();
-  Serial.println("File read from SD card.");
-  Serial.printf("First frame, first column: %lu \n",transport_animation[0][0]);
-  Serial.printf("Last frame, last column: %lu \n",transport_animation[19][18]);
-  
   */
-  /*
+
   for (size_t i = 0; i < loop_frames_count; i++)
   {
     loop_frames[i] = new Frame(loop_animation[i]);
   }
-  loop_anim = new Animation(loop_frames, loop_frames_count);
+  loop_anim = new Animation(loop_frames, loop_frames_count,true,false);
   loop_anim->write_max_loop_count(10);
   loop_anim->write_playback_type(LOOP_N_TIMES);
   loop_anim->write_playback_dir(true);
-  
+  //loop_anim->save_to_SD_card(2);
+
   current_anim = once_anim;
   current_anim->start_animation();
   current_frame = current_anim->get_current_frame();  
-  */
+  
   ram.run();
   report_ram();
 

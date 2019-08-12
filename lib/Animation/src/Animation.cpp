@@ -14,39 +14,36 @@ Frame::Frame(uint32_t *picture, bool alloced_picture, uint8_t *duty_cycle, bool 
     _rows = rows;
     if (duty_cycle == nullptr)
     {
-        Serial.printf("Starting duty cycle malloc\n");
         int tolerance = 10000;
         if((FreeStack() < (_cols*_rows + tolerance))){
             Serial.printf("Failed to initialize frame with duty_cycle array of size: %d\n"
             "Available space in RAM: %d\n", _cols*_rows, FreeStack());
             return;
         }
-        Serial.printf("Initializing frame with duty_cycle array of size: %d\n"
-            "Available space in RAM: %d\n", _cols*_rows, FreeStack());
+        //Serial.printf("Initializing frame with duty_cycle array of size: %d\n"
+        //   "Available space in RAM: %d\n", _cols*_rows, FreeStack());
 
         _malloced_duty = true;
         _duty_cycle = new uint8_t [cols*rows];
         for (int row = 0; row < rows; row++)
         {
-            Serial.printf("row:%d,    ",row);
             //_duty_cycle[col] = new uint8_t[rows];
             for (int col = 0; col < cols; col++)
             {
-                Serial.printf("Col:%d,",col);
                 _duty_cycle[row*cols + col] = (uint8_t)DUTY_CYCLE_RESOLUTION;
             }
             Serial.println();
         }
     }else
     {
-        Serial.printf("Starting to fill duty cycle from %s array at: %p", alloced_duty?"dynamically allocated":"static",duty_cycle);
+        //Serial.printf("Starting to fill duty cycle from %s array at: %p\n", alloced_duty?"dynamically allocated":"static",duty_cycle);
         _malloced_duty = alloced_duty;
         _duty_cycle = duty_cycle;
         for (int y = 0; y < rows; y++)
         {
             for (int x = 0; x < cols; x++)
             {
-                if (duty_cycle[x*cols + y] < DUTY_CYCLE_RESOLUTION)
+                if (duty_cycle[y*cols + x] < DUTY_CYCLE_RESOLUTION)
                 {
                     pwm_pixels_x.push_back(x);
                     pwm_pixels_y.push_back(y);
@@ -187,11 +184,12 @@ inline void Frame::_delete_duty_cycle()
 }
 
 //Constructor
-Animation::Animation(Frame **frames, int num_frames, int cols, int rows)
+Animation::Animation(Frame **frames, int num_frames, bool alloced_frames, bool alloced_frame_array, int cols, int rows)
 {
     _num_frames = num_frames;
     _cols = cols;
     _rows = rows;
+    
     if (frames == nullptr)
     {
         _frames = new Frame *[num_frames];
@@ -199,23 +197,32 @@ Animation::Animation(Frame **frames, int num_frames, int cols, int rows)
         {
             _frames[frame] = new Frame();
         }
+        _malloced_frames = true;
+        _malloced_frame_array = true;
     }
     else
     {    
         _frames = frames;
+        _malloced_frames = alloced_frames;
+        _malloced_frame_array = alloced_frame_array;
     }
 }
 
 // Public Methods
 void Animation::delete_anim(void)
 {
-    for (int frame = 0; frame < _num_frames; frame++)
-    {
-        _frames[frame]->delete_frame();
+    if(_malloced_frames){
+        for (int frame = 0; frame < _num_frames; frame++)
+        {
+            _frames[frame]->delete_frame();
+        }
     }
-    delete _frames;
-    delete _frame_buf;
-    delete _duty_buf;
+    if(_malloced_frame_array)
+        delete _frames;
+    if(_frame_buf != nullptr)
+        delete _frame_buf;
+    if (_duty_buf != nullptr)
+        delete _duty_buf;
 }
 
 Frame *Animation::get_frame(int frame_num)
@@ -432,23 +439,10 @@ int Animation::save_to_SD_card(uint16_t file_index){
     
     uint8_t* framebuf8 = (uint8_t*) frame_buf;
     sdFile.write(framebuf8,frames*cols*sizeof(uint32_t)); //*4 because the buffer is uint32_t
-    sdFile.flush();
     sdFile.write(duty_buf,frames*cols*rows);
     sdFile.flush();
 
     /*
-    Serial.printf("Frame buffer before save:\n");
-    for(int f = 0; f<frames;f++){
-        for (int c = 0; c < cols; c++)
-        {
-            Serial.printf("[frame:%2d,col:%2d]:0x%8lx\n",f, c, frame_buf[(f*cols)+c]);
-            delay(300);
-        }
-        
-    }
-    */
-
-    
     Serial.printf("Duty buffer before save:\n");
     for(int f = 0; f<frames;f++){
         for (int r = 0; r < rows; r++)
@@ -461,6 +455,7 @@ int Animation::save_to_SD_card(uint16_t file_index){
             Serial.println();
         }
     }
+    */
 
     sdFile.close();
     Serial.printf("Data-file saved to SD card as: '%s'.\n",full_filename);
@@ -468,57 +463,6 @@ int Animation::save_to_SD_card(uint16_t file_index){
     Serial.println("Save sucessful.");
     return 1;
 }
-
-
-RamMonitor ram2;
-void report_ram_stat2(const char *aname, uint32_t avalue)
-{
-  // Code from RamMonitorExample.cpp
-  // copyright Adrian Hunt (c) 2015 - 2016
-  Serial.print(aname);
-  Serial.print(": ");
-  Serial.print((avalue + 512) / 1024);
-  Serial.print(" Kb (");
-  Serial.print((((float)avalue) / ram2.total()) * 100, 1);
-  Serial.print("% of ");
-  Serial.print((ram2.total()+512)/1024 );
-  Serial.println(" Kb)");
-};
-
-void report_ram2()
-{ 
-    // Code from RamMonitorExample.cpp
-    // copyright Adrian Hunt (c) 2015 - 2016
-    bool lowmem;
-    bool crash;
-
-    Serial.println("==== memory report ====");
-    Serial.printf("heapsize: %d\n",ram2.heap_used());
-    Serial.printf("heapfree: %d\n",ram2.heap_free());
-    Serial.printf("heaptotal: %d\n",ram2.heap_total());
-    Serial.printf("stacksize: %d\n",ram2.stack_used());
-    Serial.printf("stackfree: %d\n",ram2.stack_free());
-    Serial.printf("stacktotal: %d\n",ram2.stack_total());
-    Serial.printf("totalfree: %d\n",ram2.free());
-    Serial.printf("total: %d\n",ram2.total());
-    report_ram_stat2("free", ram2.adj_free());
-    report_ram_stat2("stack", ram2.stack_total());
-    report_ram_stat2("heap", ram2.heap_total());
-
-    lowmem = ram2.warning_lowmem();
-    crash = ram2.warning_crash();
-    if (lowmem || crash)
-    {
-        Serial.println();
-
-        if (crash)
-        Serial.println("**warning: stack and heap crash possible");
-        else if (lowmem)
-        Serial.println("**warning: unallocated memory running low");
-    };
-
-    Serial.println();
-};
 
 int Animation::read_from_SD_card(uint16_t file_index){
     if(!sd.begin()){
@@ -528,12 +472,19 @@ int Animation::read_from_SD_card(uint16_t file_index){
     Serial.printf("numframes:%d\n",_num_frames);
 
     //Clear memory of old frames
-    for (int i = 0; i < _num_frames; i++)
+    if (_malloced_frames)
     {
-        Serial.printf("i:%d\n",i);
-        _frames[i]->delete_frame();
+        for (int i = 0; i < _num_frames; i++)
+        {
+            Serial.printf("i:%d\n",i);
+            _frames[i]->delete_frame();
+        }
     }
-    delete _frames;
+    if (_malloced_frame_array)
+    {
+        delete _frames;
+    }
+    
     
     //Read ASCII config file:
     //(Using ASCII here because we as users are more likely to 
@@ -590,24 +541,12 @@ int Animation::read_from_SD_card(uint16_t file_index){
         Serial.printf("Could not allocate memory for duty_cycle arr of size: %d\n"
         "Available space in RAM: %d\n",frames*cols*rows, FreeStack());
 
-        ram2.initialize();
-        ram2.run();
         Serial.printf("Pointer to _duty_buf: %8p,%d\n",_duty_buf,_duty_buf);
         Serial.printf("Pointer to _frame_buf: %p\n",_frame_buf);
-        report_ram2();
-
-        delay(100000);
         return-1;
     }else{
-        
-        ram2.initialize();
-        ram2.run();
-
-        Serial.printf("Pointer to _duty_buf: %p,%d\n",_duty_buf,_duty_buf);
-        Serial.printf("Pointer to _frame_buf: %p\n",_frame_buf);
-        report_ram2();
-
-        delay(10000);
+        //Serial.printf("Pointer to _duty_buf: %p,%d\n",_duty_buf,_duty_buf);
+        //Serial.printf("Pointer to _frame_buf: %p\n",_frame_buf);
     }
     sprintf(full_filename,"A%u_D.bin",file_index);
     if (!sdFile.open(full_filename, O_RDONLY)) {
@@ -616,13 +555,9 @@ int Animation::read_from_SD_card(uint16_t file_index){
         return -1;
     }
     
-    int bytes = sdFile.read(frame_buf8,frames*cols*sizeof(uint32_t));
-    int bytes2 = sdFile.read(_duty_buf,frames*cols*rows);
-    Serial.printf("bytes read to frame buffer:%d\n", bytes);
-    Serial.printf("bytes read to duty buffer:%d\n", bytes2);  
-    Serial.printf("Pointer to _duty_buf after read: %p,%d\n",_duty_buf,_duty_buf);
-    Serial.printf("Pointer to _frame_buf after read: %p\n",_frame_buf);
-    delay(10000);
+    sdFile.read(frame_buf8,frames*cols*sizeof(uint32_t));
+    sdFile.read(_duty_buf,frames*cols*rows);
+    
 
     /*Serial.printf("Frame buffer after read:\n");
     for(int f = 0; f<frames;f++){
@@ -632,6 +567,7 @@ int Animation::read_from_SD_card(uint16_t file_index){
         }
         
     }*/
+    /*
     Serial.printf("Duty buffer after read:\n");
     for(int f = 0; f<frames;f++){
         for (int r = 0; r < rows; r++){
@@ -643,18 +579,19 @@ int Animation::read_from_SD_card(uint16_t file_index){
             Serial.println();
         }
     }
-    delay(500);
+    */
+
     _frames = new Frame *[frames];
     Serial.printf("frames:%d,cols:%d,rows:%d\n",frames,cols,rows);
     for (int frame = 0; frame < frames; frame++)
     {
-        Serial.printf("Frame:%d, based on %x, %d\n",frame,_frame_buf[frame*cols],_duty_buf[frame*cols*rows]);
         //The arrays sent to the frame constructor are marked as NOT dynamically allocated (even though they are)
         //This is because the "delete" will be handled by the animation object, and should therefore not be performed by the frame object.
         _frames[frame] = new Frame(&_frame_buf[frame*cols],false,&_duty_buf[frame*cols*rows],false); 
     }
+    _malloced_frame_array = true;
+    _malloced_frames = true;
     
-    delay(5000);
     /* The below was needed when duty_cycle was stored differently in this method and in the frame object.
     Therefore it should now be irrelevant because we have changed how the Frame object stores duty cycles
     //Fill buffers:
