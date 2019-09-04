@@ -1,11 +1,8 @@
 #include "Animation.h"
-#include "SdFat.h"
 #include "FreeStack.h"
 #include "RamMonitor.h"
 #include "csv_helpers.h"
 
-
-SdFatSdioEX sd;
 File sdFile;
 //Constructor
 Frame::Frame(uint32_t *picture, bool alloced_picture, uint8_t *duty_cycle, bool alloced_duty, int cols, int rows)
@@ -332,7 +329,9 @@ Frame *Animation::get_prev_frame(){
 }
 
 void Animation::start_animation(int start_frame){
-    
+    if(start_frame == -1){
+        start_frame = _num_frames - 1;
+    }
     _playback_state = RUNNING;
     _start_idx = start_frame;
     _current_frame = start_frame;
@@ -370,7 +369,8 @@ PlaybackType Animation::get_playback_type(){
     \param[in] file_index is a maximum 5 digit number that will be added to the filename. 
         If the number is not unique, the previous file (with the same index) will be overwritten.
  */
-int Animation::save_to_SD_card(uint16_t file_index){
+int Animation::save_to_SD_card(SdFatSdioEX sd, uint16_t file_index)
+{
     if(!sd.begin()){
         Serial.println("SD initialitization failed. Save unsucessful.");
         return -1;
@@ -464,19 +464,19 @@ int Animation::save_to_SD_card(uint16_t file_index){
     return 1;
 }
 
-int Animation::read_from_SD_card(uint16_t file_index){
-    if(!sd.begin()){
+int Animation::read_from_SD_card(SdFatSdioEX sd, uint16_t file_index){
+    /*if(!sd.begin()){
         Serial.println("SD initialitization failed. Read unsucessful.");
         return -1;
-    }
-    Serial.printf("numframes:%d\n",_num_frames);
+    }*/
+    //Serial.printf("numframes:%d\n",_num_frames);
 
     //Clear memory of old frames
     if (_malloced_frames)
     {
         for (int i = 0; i < _num_frames; i++)
         {
-            Serial.printf("i:%d\n",i);
+            //Serial.printf("i:%d\n",i);
             _frames[i]->delete_frame();
         }
     }
@@ -500,6 +500,8 @@ int Animation::read_from_SD_card(uint16_t file_index){
         sd.errorHalt("open failed");
         return -1;
     }
+
+    digitalWrite(31, LOW);
     char delim = ',';
     csvReadInt(&sdFile,&_cols,delim);
     csvReadInt(&sdFile,&_rows,delim);

@@ -9,6 +9,7 @@
 
 #include <Arduino.h>
 #include <vector>
+#include "SdFat.h"
 
 #define DUTY_CYCLE_RESOLUTION 20
 //holders for infromation you're going to pass to shifting function
@@ -96,8 +97,8 @@ public:
     void    write_playback_type(PlaybackType type);
     PlaybackType get_playback_type();
 
-    int    save_to_SD_card(uint16_t file_index);
-    int    read_from_SD_card(uint16_t file_index);
+    int     save_to_SD_card(SdFatSdioEX sd, uint16_t file_index);
+    int     read_from_SD_card(SdFatSdioEX sd, uint16_t file_index);
 
 private:
     int             _cols;

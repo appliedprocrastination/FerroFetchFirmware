@@ -2,16 +2,21 @@
 #include <arm_math.h>
 
 #include "Animation.h"
+//#include "SdFat.h"
 #include "debug.h"
 #include "RamMonitor.h"
 //#include "FreeStack.h"
 
 #define PWM_PERIOD_INDICATOR 32 //Indicator pin used by logic analyzer to measure PWM frequency
+#define SD_READ_INDICATOR 31
+#define BUTTONPIN 33
 
 const bool DEBUG = true;
 int counter = 0;                //debugvariables
 unsigned long startTime = 0;    //debugvariables
 
+SdFatSdioEX sd;
+bool sd_present = true;
 
 //PRELOADED_ANIMATION:  The entire animation is written into memory before the program is compiled
 //DYNAMIC_ANIMATION:    The animation can be changed/updated dynamically, but is based on a fixed framerate
@@ -41,7 +46,7 @@ uint8_t dutyCycleCounter = 0;
 //int shortDelay = 500; //ms
 //int longDelay = 1000; //ms
 //unsigned long timeBetweenRefreshes = 6000;//12*shortDelay; //ms
-unsigned long frame_rate    = 2; //fps
+unsigned long frame_rate    = 4; //fps. 8 FPS seems to be the maximum our ferrofluid can handle 02.Sept.2019
 unsigned long frame_period   = 1000/frame_rate; //ms
 
 //int frame = 1;
@@ -63,28 +68,28 @@ uint32_t transport_animation[transport_anim_count][COLS] = {
 };
 */
 uint32_t transport_animation[transport_anim_count][COLS] = {
-    {0xff, 0, 0, 0, 0, 0, 0,      0b1,        0,        0b1,         0,       0, 0, 0, 0, 0, 0, 0, 0xee},
-    {0xff, 0, 0, 0, 0, 0, 0,     0b11,        0,       0b11,         0,       0, 0, 0, 0, 0, 0, 0, 0xee},
-    {0xff, 0, 0, 0, 0, 0, 0,     0b10,        0,       0b10,         0,       0, 0, 0, 0, 0, 0, 0, 0xee},
-    {0xff, 0, 0, 0, 0, 0, 0,    0b110,      0b1,      0b110,       0b1,       0, 0, 0, 0, 0, 0, 0, 0xee},
-    {0xff, 0, 0, 0, 0, 0, 0,    0b100,     0b11,      0b100,      0b11,       0, 0, 0, 0, 0, 0, 0, 0xee},
-    {0xff, 0, 0, 0, 0, 0, 0,   0b1100,     0b10,     0b1100,      0b10,       0, 0, 0, 0, 0, 0, 0, 0xee},
-    {0xff, 0, 0, 0, 0, 0, 0,   0b1001,    0b110,     0b1001,     0b110,       0, 0, 0, 0, 0, 0, 0, 0xee},
-    {0xff, 0, 0, 0, 0, 0, 0,  0b11011,    0b100,    0b11011,     0b100,       0, 0, 0, 0, 0, 0, 0, 0xee},
-    {0xff, 0, 0, 0, 0, 0, 0,  0b10010,   0b1100,    0b10010,    0b1100,       0, 0, 0, 0, 0, 0, 0, 0xee},
-    {0xff, 0, 0, 0, 0, 0, 0, 0b110110,   0b1001,   0b110110,    0b1001,       0, 0, 0, 0, 0, 0, 0, 0xee}, 
-    {0xff, 0, 0, 0, 0, 0, 0, 0b100100,  0b11011,   0b100100,   0b11011,       0, 0, 0, 0, 0, 0, 0, 0xee},
-    {0xff, 0, 0, 0, 0, 0, 0,0b1101100,  0b10010,  0b1101100,   0b10010,       0, 0, 0, 0, 0, 0, 0, 0xee}, 
-    {0xff, 0, 0, 0, 0, 0, 0,0b1001000, 0b110110,  0b1001000,  0b110110,       0, 0, 0, 0, 0, 0, 0, 0xee}, 
-    {0xff, 0, 0, 0, 0, 0, 0,0b1101100, 0b100100,  0b1001000,  0b100100,       0, 0, 0, 0, 0, 0, 0, 0xee}, 
-    {0xff, 0, 0, 0, 0, 0, 0,0b1101100, 0b100100,  0b1001000, 0b1101100,       0, 0, 0, 0, 0, 0, 0, 0xee}, 
+    {0, 0, 0, 0, 0, 0, 0,      0b1,        0,        0b1,         0,       0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0,     0b11,        0,       0b11,         0,       0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0,     0b10,        0,       0b10,         0,       0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0,    0b110,      0b1,      0b110,       0b1,       0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0,    0b100,     0b11,      0b100,      0b11,       0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0,   0b1100,     0b10,     0b1100,      0b10,       0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0,   0b1001,    0b110,     0b1001,     0b110,       0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0,  0b11011,    0b100,    0b11011,     0b100,       0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0,  0b10010,   0b1100,    0b10010,    0b1100,       0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0, 0b110110,   0b1001,   0b110110,    0b1001,       0, 0, 0, 0, 0, 0, 0, 0}, 
+    {0, 0, 0, 0, 0, 0, 0, 0b100100,  0b11011,   0b100100,   0b11011,       0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0,0b1101100,  0b10010,  0b1101100,   0b10010,       0, 0, 0, 0, 0, 0, 0, 0}, 
+    {0, 0, 0, 0, 0, 0, 0,0b1001000, 0b110110,  0b1001000,  0b110110,       0, 0, 0, 0, 0, 0, 0, 0}, 
+    {0, 0, 0, 0, 0, 0, 0,0b1101100, 0b100100,  0b1001000,  0b100100,       0, 0, 0, 0, 0, 0, 0, 0}, 
+    {0, 0, 0, 0, 0, 0, 0,0b1101100, 0b100100,  0b1001000, 0b1101100,       0, 0, 0, 0, 0, 0, 0, 0}, 
     
-    {0xff, 0, 0, 0, 0, 0, 0,0b0100100, 0b000000,  0b0000000, 0b1101100,       0, 0, 0, 0, 0, 0, 0, 0xee},
-    {0xff, 0, 0, 0, 0, 0, 0,0b0100100, 0b000000,  0b0000000, 0b1001000,       0, 0, 0, 0, 0, 0, 0, 0xee},  
+    {0, 0, 0, 0, 0, 0, 0,0b0100100, 0b000000,  0b0000000, 0b1101100,       0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, 0,0b0100100, 0b000000,  0b0000000, 0b1001000,       0, 0, 0, 0, 0, 0, 0, 0},  
  
-    {0xff, 0, 0, 0, 0, 0, 0,0b0100100, 0b000000,  0b0000000, 0b1001000,       0, 0, 0, 0, 0, 0, 0, 0xee}, 
-    {0xff, 0, 0, 0, 0, 0, 0,0b0100100, 0b000000,  0b0000000, 0b1001000,       0, 0, 0, 0, 0, 0, 0, 0xee}, 
-    {0xff, 0, 0, 0, 0, 0, 0,0b0100100, 0b000000,  0b0000000, 0b1001000,       0, 0, 0, 0, 0, 0, 0, 0xee} 
+    {0, 0, 0, 0, 0, 0, 0,0b0100100, 0b000000,  0b0000000, 0b1001000,       0, 0, 0, 0, 0, 0, 0, 0}, 
+    {0, 0, 0, 0, 0, 0, 0,0b0100100, 0b000000,  0b0000000, 0b1001000,       0, 0, 0, 0, 0, 0, 0, 0}, 
+    {0, 0, 0, 0, 0, 0, 0,0b0100100, 0b000000,  0b0000000, 0b1001000,       0, 0, 0, 0, 0, 0, 0, 0} 
 };
 
 
@@ -108,6 +113,9 @@ uint32_t loop_animation[loop_frames_count][COLS] = {
 //Preloaded animations
 Animation* once_anim;
 Animation* loop_anim;
+Animation* anim1;
+Animation* anim2;
+Animation* anim3;
 
 //uint32_t dynamic_animation;
 Animation* current_anim;
@@ -229,13 +237,22 @@ void update_all_states()
   for (int x = 0; x < COLS; x++)
   {
     current_shift_out_mag_state[x] = current_frame->get_picture_at(x);
+    /*
     for (size_t i = 0; i < current_frame->pwm_pixels_x.size(); i++)
     {
       if(current_frame->pwm_pixels_x[i] == x){
-        if (current_frame->get_duty_cycle_at(current_frame->pwm_pixels_x[i], current_frame->pwm_pixels_y[i]) > dutyCycleCounter)
+        if (current_frame->get_duty_cycle_at(current_frame->pwm_pixels_x[i], current_frame->pwm_pixels_y[i]) < dutyCycleCounter)
         {
           current_shift_out_mag_state[x] ^= 1 << current_frame->pwm_pixels_y[i]; //Toggle (turn off )
         } 
+      }
+    }*/
+    for(int y = 0; y < ROWS; y++){
+      uint8_t cduty = current_frame->get_duty_cycle_at(x, y);
+      if (dutyCycleCounter > cduty)
+      //if (cduty + dutyCycleCounter <= DUTY_CYCLE_RESOLUTION) //inverts the test, so that a PWM cycle ends in the "on" state instead of "off"
+      {
+        current_shift_out_mag_state[x] &= ~(1 << y); //Toggle (turn off )
       }
     }
   }
@@ -399,8 +416,10 @@ void movementAlgorithm(){
       //remember to use current_anim->start_animation() after loading the next animation
       Serial.printf("New Anim!\n");
       animation_num++;
+      animation_num+=5;
       Serial.printf("Preparing Animation num: %d\n",animation_num);
       if(animation_num == 1){
+        /*
         loop_anim->write_max_loop_count(5);
         loop_anim->write_playback_type(LOOP_N_TIMES);
         loop_anim->write_playback_dir(true);
@@ -408,22 +427,43 @@ void movementAlgorithm(){
         current_anim = loop_anim;
         current_anim->start_animation();
         current_frame = current_anim->get_current_frame();
+        */
+        //digitalWrite(SD_READ_INDICATOR, HIGH);
+        anim2->read_from_SD_card(sd,20);
+        anim2->write_playback_type(ONCE);
+        anim2->write_playback_dir(true);
+        //digitalWrite(SD_READ_INDICATOR, LOW);
+        //digitalWrite(SD_READ_INDICATOR, HIGH);
         
+        current_anim = anim2;
+        current_anim->start_animation();
+        current_frame = current_anim->get_current_frame();
+        //digitalWrite(SD_READ_INDICATOR, LOW);
       }
       else if (animation_num == 2)
       {
-        
+        /*
         loop_anim->write_max_loop_count(5);
         loop_anim->write_playback_type(LOOP_N_TIMES);
         loop_anim->write_playback_dir(false);
 
         current_anim = loop_anim;
-        current_anim->start_animation();
+        current_anim->start_animation(loop_frames_count-1);
         current_frame = current_anim->get_current_frame();
-        
+        */
+        //anim3->read_from_SD_card(sd, 12);
+        anim2->write_playback_type(ONCE);
+        anim2->write_playback_dir(false);
+
+        current_anim = anim2;
+        current_anim->start_animation(-1);
+        current_frame = current_anim->get_current_frame();
+        //current_frame->write_duty_cycle_at(9,4,14-animation_num);
+        //Serial.printf("Duty: %d/20\n", 14 - animation_num);
       }
-      else if (animation_num == 3)
+      else if (animation_num == 0)
       {
+        /*
         once_anim->write_playback_type(ONCE);
         once_anim->write_playback_dir(false);
 
@@ -431,9 +471,18 @@ void movementAlgorithm(){
         current_anim->start_animation(transport_anim_count-1);
 
         current_frame = current_anim->get_current_frame();
-        
+        */
+        anim2->write_playback_dir(false);
+        current_anim = anim2;
+        current_anim->start_animation(-1);
+        current_frame = current_anim->get_current_frame();
+      }else if (animation_num == 0){
+        anim1->write_playback_dir(false);
+        current_anim = anim1;
+        current_anim->start_animation(-1);
+        current_frame = current_anim->get_current_frame();
       }
-      animation_num++;
+      //animation_num++;
     }
     if(animation_mode != PRELOADED_ANIMATION){
       //TODO: handle incoming changes
@@ -462,7 +511,17 @@ void movementAlgorithm(){
   }
 }
 
+void restart_anim(void){
+  current_anim = anim1;
 
+  current_anim->write_playback_type(ONCE);
+  current_anim->write_playback_dir(true);
+  current_anim->start_animation(0);
+  current_frame = current_anim->get_current_frame();
+  animation_num = 0;
+  delay(200);
+  Serial.println("Interrupt");
+}
 
 void setup() {
   Serial.begin(9600);
@@ -472,12 +531,21 @@ void setup() {
   while(!Serial);
   Serial.println("Serial initiated");
 
-  //set pins to output because they are addressed in the main loop
-  pinMode(PWM_PERIOD_INDICATOR,OUTPUT);
+  if (!sd.begin())
+  {
+    Serial.println("SD initialitization failed. Read unsucessful.");
+    sd_present = false;
+  }
+
+  pinMode(BUTTONPIN, INPUT);
+ //set pins to output because they are addressed in the main loop
+  pinMode(PWM_PERIOD_INDICATOR, OUTPUT);
+  pinMode(SD_READ_INDICATOR, OUTPUT);
   pinMode(SHIFT_CLK_PIN,OUTPUT);
   pinMode(SHIFT_ENABLE_PIN,OUTPUT);
 
   digitalWrite(PWM_PERIOD_INDICATOR, LOW);
+  digitalWrite(SD_READ_INDICATOR, LOW);
   digitalWrite(SHIFT_CLK_PIN, LOW);
   digitalWrite(SHIFT_ENABLE_PIN, HIGH);
   for (int i = 0; i < ALL_ROWS; i++)
@@ -508,7 +576,7 @@ void setup() {
   ram.run();
   report_ram();
   //Load preloaded frames into objects.
-  
+  /*
   for (size_t i = 0; i < transport_anim_count; i++)
   {
     transport_anim_frames[i] = new Frame(transport_animation[i]);
@@ -517,17 +585,19 @@ void setup() {
   once_anim = new Animation(transport_anim_frames,transport_anim_count,true,false);
   once_anim->write_playback_type(ONCE); 
   once_anim->write_playback_dir(true);
+   */
   //once_anim->save_to_SD_card(1);
+
 
   /*
   once_anim->save_to_SD_card(99);
   once_anim->write_playback_type(LOOP); //Set to something other than what's in the file being read below to validate that it's being overwritten
   once_anim->write_playback_dir(false); //Set to something other than what's in the file being read below to validate that it's being overwritten
-  once_anim->read_from_SD_card(99);
+  once_anim->read_from_SD_card(sd, 99);
   Serial.printf("Type: %d (LOOP = %d)\n",(int)once_anim->get_playback_type(),(int) LOOP);
   Serial.printf("Dir: %d (backwards = %d)\n",(int)once_anim->get_playback_dir(),(int)false);
   */
-
+  /*
   for (size_t i = 0; i < loop_frames_count; i++)
   {
     loop_frames[i] = new Frame(loop_animation[i]);
@@ -537,8 +607,19 @@ void setup() {
   loop_anim->write_playback_type(LOOP_N_TIMES);
   loop_anim->write_playback_dir(true);
   //loop_anim->save_to_SD_card(2);
+  */
+  anim1 = new Animation(nullptr, 1);
+  //anim1->save_to_SD_card(999);
+  if(sd_present){
+    anim1->read_from_SD_card(sd, 1);
+  }
+  anim1->write_playback_type(ONCE);
+  anim1->write_playback_dir(true);
 
-  current_anim = once_anim;
+  anim2 = new Animation(nullptr, 1);
+  anim3 = new Animation(nullptr, 1);
+
+  current_anim = anim1;
   current_anim->start_animation();
   current_frame = current_anim->get_current_frame();  
   
