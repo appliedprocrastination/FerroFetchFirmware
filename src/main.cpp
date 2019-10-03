@@ -7,10 +7,6 @@
 #include "RamMonitor.h"
 //#include "FreeStack.h"
 
-#define PWM_PERIOD_INDICATOR 32 //Indicator pin used by logic analyzer to measure PWM frequency
-#define SD_READ_INDICATOR 31
-#define BUTTONPIN 33
-
 const bool DEBUG = true;
 int counter = 0;                //debugvariables
 unsigned long startTime = 0;    //debugvariables
@@ -23,6 +19,19 @@ bool sd_present = true;
 //ASYNC_ANIMATION:      The animation is independent of the framerate and a pixel can be set at any given time.
 enum AnimationMode{PRELOADED_ANIMATION, DYNAMIC_ANIMATION, ASYNC_ANIMATION};
 AnimationMode animation_mode = PRELOADED_ANIMATION;
+
+int STATE_SWITCH_PINS[4] = {27,25,26,4};
+enum StateSwitchMode{ LEFT = 27,
+                      MIDRIGHT = 25,
+                      MIDLEFT = 26,
+                      RIGHT = 4};
+StateSwitchMode state_switch_mode;
+
+int BUTTON_LEFT = 5;
+int BUTTON_UP   = 6;
+int BUTTON_RIGHT= 7;
+int BUTTON_DOWN = 8;
+int BUTTON_PINS[4] = {BUTTON_LEFT, BUTTON_UP, BUTTON_RIGHT, BUTTON_DOWN};
 
 //Pin connected to SRCLK of SN74HC595
 const int SHIFT_CLK_PIN = 2; //SRCLK
@@ -46,7 +55,7 @@ uint8_t dutyCycleCounter = 0;
 //int shortDelay = 500; //ms
 //int longDelay = 1000; //ms
 //unsigned long timeBetweenRefreshes = 6000;//12*shortDelay; //ms
-unsigned long frame_rate    = 4; //fps. 8 FPS seems to be the maximum our ferrofluid can handle 02.Sept.2019
+unsigned long frame_rate    = 2; //fps. 8 FPS seems to be the maximum our ferrofluid can handle 02.Sept.2019
 unsigned long frame_period   = 1000/frame_rate; //ms
 
 //int frame = 1;
@@ -231,12 +240,13 @@ void updateAllStates_async()
   if (dutyCycleCounter >= DUTY_CYCLE_RESOLUTION)
     dutyCycleCounter = 0;
 }
+
 void update_all_states()
 {
-  
+  uint8_t local_shift_out_mag_state;
   for (int x = 0; x < COLS; x++)
   {
-    current_shift_out_mag_state[x] = current_frame->get_picture_at(x);
+    local_shift_out_mag_state = current_frame->get_picture_at(x);
     /*
     for (size_t i = 0; i < current_frame->pwm_pixels_x.size(); i++)
     {
@@ -252,9 +262,10 @@ void update_all_states()
       if (dutyCycleCounter > cduty)
       //if (cduty + dutyCycleCounter <= DUTY_CYCLE_RESOLUTION) //inverts the test, so that a PWM cycle ends in the "on" state instead of "off"
       {
-        current_shift_out_mag_state[x] &= ~(1 << y); //Toggle (turn off )
+        local_shift_out_mag_state &= ~(1 << y); //Toggle (turn off )
       }
     }
+    current_shift_out_mag_state[x] = local_shift_out_mag_state;
   }
   dutyCycleCounter++;
   if (dutyCycleCounter >= DUTY_CYCLE_RESOLUTION)
@@ -274,8 +285,8 @@ void shiftOut_one_PCB_per_PORT(void)
   //indicate to logic analyzer that the shift is starting
   //(The latch pin could be used to achieve this functionality in current software,
   //but in order to test different shifting procedures a separate pin is used)
-  if(dutyCycleCounter == 0)
-    digitalWrite(PWM_PERIOD_INDICATOR, HIGH);
+  //if(dutyCycleCounter == 0)
+    //digitalWrite(PWM_PERIOD_INDICATOR, HIGH);
   //ground latchPin and hold low for as long as you are transmitting
   digitalWrite(SHIFT_ENABLE_PIN, LOW);
 
@@ -310,8 +321,8 @@ void shiftOut_one_PCB_per_PORT(void)
   digitalWrite(SHIFT_ENABLE_PIN, HIGH);
 
   //Indicate to logic analyzer that the shift is done
-  if (dutyCycleCounter == DUTY_CYCLE_RESOLUTION-1)
-    digitalWrite(PWM_PERIOD_INDICATOR, LOW);
+  //if (dutyCycleCounter == DUTY_CYCLE_RESOLUTION-1)
+    //digitalWrite(PWM_PERIOD_INDICATOR, LOW);
 }
 
 void refreshScreen()
@@ -481,6 +492,10 @@ void movementAlgorithm(){
         current_anim = anim1;
         current_anim->start_animation(-1);
         current_frame = current_anim->get_current_frame();
+      }else{
+        //No animation is currently loaded, running or prepared to run.
+        //Inserting a delay here so the Teensy doesn't go into overdrive, causing it to be unresponsive to programming events.
+        delay(50);
       }
       //animation_num++;
     }
@@ -537,15 +552,22 @@ void setup() {
     sd_present = false;
   }
 
-  pinMode(BUTTONPIN, INPUT);
- //set pins to output because they are addressed in the main loop
-  pinMode(PWM_PERIOD_INDICATOR, OUTPUT);
-  pinMode(SD_READ_INDICATOR, OUTPUT);
+
+  for (int i = 0; i < 4; i++)
+  {
+    pinMode(STATE_SWITCH_PINS[i],INPUT_PULLUP);
+    pinMode(BUTTON_PINS[i],INPUT_PULLDOWN);
+    if(digitalRead(STATE_SWITCH_PINS[i]) == LOW){
+      state_switch_mode = (StateSwitchMode)STATE_SWITCH_PINS[i];
+      Serial.printf("State Switch Mode: %d \n",state_switch_mode);
+    }else{
+      //Serial.printf("StateSwitchMode %d not in use.",STATE_SWITCH_PINS[i]);
+    }
+  }
+
   pinMode(SHIFT_CLK_PIN,OUTPUT);
   pinMode(SHIFT_ENABLE_PIN,OUTPUT);
 
-  digitalWrite(PWM_PERIOD_INDICATOR, LOW);
-  digitalWrite(SD_READ_INDICATOR, LOW);
   digitalWrite(SHIFT_CLK_PIN, LOW);
   digitalWrite(SHIFT_ENABLE_PIN, HIGH);
   for (int i = 0; i < ALL_ROWS; i++)
@@ -611,7 +633,7 @@ void setup() {
   anim1 = new Animation(nullptr, 1);
   //anim1->save_to_SD_card(999);
   if(sd_present){
-    anim1->read_from_SD_card(sd, 1);
+    anim1->read_from_SD_card(sd, 2);
   }
   anim1->write_playback_type(ONCE);
   anim1->write_playback_dir(true);
