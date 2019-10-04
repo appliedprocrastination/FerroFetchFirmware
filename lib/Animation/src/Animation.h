@@ -13,10 +13,10 @@
 
 #define DUTY_CYCLE_RESOLUTION 20
 //holders for infromation you're going to pass to shifting function
-const int ALL_ROWS = 10;   //The total number of rows in the actual hardware
-const int ALL_COLS = 19;   //The total number of columns in the actual hardware
-const int ROWS = ALL_ROWS; //12; //The number of rows that are in use in the current program (different from ALL_ROWS in order to scale down the number of bits shifted out)
-const int COLS = ALL_COLS; //21; //The number of cols that are in use in the current program (different from ALL_COLS in order to scale down the number of bits shifted out)
+const int ALL_ROWS = 12;   //The total number of rows in the actual hardware
+const int ALL_COLS = 21;   //The total number of columns in the actual hardware
+const int ROWS = 10; //12; //The number of rows that are in use in the current program (different from ALL_ROWS in order to scale down the number of bits shifted out)
+const int COLS = 19; //21; //The number of cols that are in use in the current program (different from ALL_COLS in order to scale down the number of bits shifted out)
 
 const int REGISTERS = ROWS;       // no of register series (indicating no of magnet-driver-PCBs connected to the Arduino)
 const int BYTES_PER_REGISTER = 4; // no of 8-bit shift registers in series per line (4 = 32 bits(/magnets))

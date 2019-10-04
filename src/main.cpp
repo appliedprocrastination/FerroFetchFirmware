@@ -40,6 +40,8 @@ const int SHIFT_ENABLE_PIN = 3; //RCLK
 //Pin connected to SER of SN74HC595
 const int SHIFT_DATA_PINS[12] = {15, 22, 23, 9, 10, 13, 11, 12, 35, 36, 37, 38}; //SER, NOTE: the variable "ALL_ROWS" will change how many of these pinsare initiated
 
+//Interrupt Flags:
+volatile uint8_t RESTART_ANIM_FLAG = 0;
 
 //Timekeeping variables:
 float timeTilStart[COLS][ROWS]; //The time in ms until a magnet should start. Used to make movement patterns before the movement should happen
@@ -55,8 +57,9 @@ uint8_t dutyCycleCounter = 0;
 //int shortDelay = 500; //ms
 //int longDelay = 1000; //ms
 //unsigned long timeBetweenRefreshes = 6000;//12*shortDelay; //ms
-unsigned long frame_rate    = 2; //fps. 8 FPS seems to be the maximum our ferrofluid can handle 02.Sept.2019
+unsigned long frame_rate    = 4; //fps. 8 FPS seems to be the maximum our ferrofluid can handle 02.Sept.2019
 unsigned long frame_period   = 1000/frame_rate; //ms
+int animation_num = 0;
 
 //int frame = 1;
 
@@ -187,6 +190,29 @@ void report_ram()
 
   Serial.println();
 };
+
+//Interrupt functions:
+
+void restart_anim_isr(void)
+{
+  cli();
+  RESTART_ANIM_FLAG = 1;
+  sei();
+}
+void restart_anim(void)
+{
+  current_anim = anim1;
+
+  current_anim->write_playback_type(ONCE);
+  current_anim->write_playback_dir(true);
+  current_anim->start_animation(0);
+  current_frame = current_anim->get_current_frame();
+  animation_num = 0;
+  RESTART_ANIM_FLAG = 0;
+  delay(200);
+  Serial.println("Interrupt");
+}
+
 /*
 boolean magnetIsToggledThisFrame(int x, int y)
 {
@@ -243,7 +269,7 @@ void updateAllStates_async()
 
 void update_all_states()
 {
-  uint8_t local_shift_out_mag_state;
+  uint32_t local_shift_out_mag_state = 0;
   for (int x = 0; x < COLS; x++)
   {
     local_shift_out_mag_state = current_frame->get_picture_at(x);
@@ -262,7 +288,7 @@ void update_all_states()
       if (dutyCycleCounter > cduty)
       //if (cduty + dutyCycleCounter <= DUTY_CYCLE_RESOLUTION) //inverts the test, so that a PWM cycle ends in the "on" state instead of "off"
       {
-        local_shift_out_mag_state &= ~(1 << y); //Toggle (turn off )
+        local_shift_out_mag_state &= ~(1 << y); //Clear
       }
     }
     current_shift_out_mag_state[x] = local_shift_out_mag_state;
@@ -301,7 +327,7 @@ void shiftOut_one_PCB_per_PORT(void)
     //Sets all data-pins to HIGH or LOW depending on the corresponding value in the currMagnetState
     //(because we've checked that they are on the same port): digitalWrite(SHIFT_DATA_PINS[y], LOW);
     GPIOC_PDOR = current_shift_out_mag_state[x];
-
+    
     //The following line has not been used properly in the rest of the code, so I've disabled it for now.
     //Ideally it should set a warning flag if the time since a magnet was turned on has passed a threshold
     //so that no magent will stay "on" infinetely.
@@ -411,7 +437,6 @@ void turn_on_magnet_in_frame(int frame_num, int x, int y, uint8_t uptime){
     Serial.println(current_anim->get_current_frame_num());
   #endif
 }
-int animation_num = 0;
 
 void movementAlgorithm(){
   #if (DEBUG && false)
@@ -421,7 +446,9 @@ void movementAlgorithm(){
     Serial.println(time_for_next_frame);
   #endif
   if(timeThisRefresh >= time_for_next_frame){
+    
     current_anim->goto_next_frame();
+
     if(current_anim->anim_done()){
       //TODO: Switch to new/next animation?
       //remember to use current_anim->start_animation() after loading the next animation
@@ -495,6 +522,7 @@ void movementAlgorithm(){
       }else{
         //No animation is currently loaded, running or prepared to run.
         //Inserting a delay here so the Teensy doesn't go into overdrive, causing it to be unresponsive to programming events.
+        current_frame = current_anim->get_frame(-1);
         delay(50);
       }
       //animation_num++;
@@ -504,11 +532,19 @@ void movementAlgorithm(){
       //(or should this be done more often than once per frame? That would slow down the shifting)
     }
 
+    if (RESTART_ANIM_FLAG)
+    {
+      restart_anim();
+
+    }
+
     Serial.print("Preparing Frame: ");
     Serial.print(current_anim->get_current_frame_num());
     Serial.println();
-
+    
     current_frame = current_anim->get_current_frame();
+
+    
     //ram.run();
     //report_ram();
     /*
@@ -524,18 +560,6 @@ void movementAlgorithm(){
 
     time_for_next_frame += frame_period; //Theoretically the same as timeThisRefresh+frame_period, but in case a turn(ms) is skipped for some reason this will be more accurate.
   }
-}
-
-void restart_anim(void){
-  current_anim = anim1;
-
-  current_anim->write_playback_type(ONCE);
-  current_anim->write_playback_dir(true);
-  current_anim->start_animation(0);
-  current_frame = current_anim->get_current_frame();
-  animation_num = 0;
-  delay(200);
-  Serial.println("Interrupt");
 }
 
 void setup() {
@@ -564,6 +588,8 @@ void setup() {
       //Serial.printf("StateSwitchMode %d not in use.",STATE_SWITCH_PINS[i]);
     }
   }
+
+  attachInterrupt(BUTTON_UP,restart_anim_isr,RISING);
 
   pinMode(SHIFT_CLK_PIN,OUTPUT);
   pinMode(SHIFT_ENABLE_PIN,OUTPUT);

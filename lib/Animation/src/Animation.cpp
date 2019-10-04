@@ -501,7 +501,7 @@ int Animation::read_from_SD_card(SdFatSdioEX sd, uint16_t file_index){
         return -1;
     }
 
-    digitalWrite(31, LOW);
+    
     char delim = ',';
     csvReadInt(&sdFile,&_cols,delim);
     csvReadInt(&sdFile,&_rows,delim);
