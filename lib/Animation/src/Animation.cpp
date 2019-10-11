@@ -1,6 +1,5 @@
 #include "Animation.h"
 #include "FreeStack.h"
-#include "RamMonitor.h"
 #include "csv_helpers.h"
 
 File sdFile;
@@ -328,7 +327,7 @@ Frame *Animation::get_prev_frame(){
     return _frames[_prev_frame];
 }
 
-void Animation::start_animation(int start_frame){
+void Animation::start_animation_at(int start_frame){
     if(start_frame == -1){
         start_frame = _num_frames - 1;
     }
@@ -470,7 +469,18 @@ int Animation::read_from_SD_card(SdFatSdioEX sd, uint16_t file_index){
         return -1;
     }*/
     //Serial.printf("numframes:%d\n",_num_frames);
-
+    char full_filename[11]; //Max length of filename is 8 chars +".ext"
+    sprintf(full_filename, "A%u_C.txt", file_index);
+    
+    /*
+    Serial.println("Test");
+    if(!sdFile.exists(full_filename)){
+        Serial.printf("File: '%s' does not exist\n",full_filename);
+        return -1;
+    }
+    Serial.println("Test2");
+    */
+   
     //Clear memory of old frames
     if (_malloced_frames)
     {
@@ -493,8 +503,7 @@ int Animation::read_from_SD_card(SdFatSdioEX sd, uint16_t file_index){
     //filename format: "A000_C.txt" for config files
     //filename format: "A000_D.bin" for data files
 
-    char full_filename[11]; //Max length of filename is 8 chars +".ext"
-    sprintf(full_filename,"A%u_C.txt",file_index);
+
     if (!sdFile.open(full_filename, O_RDONLY)) {
         Serial.printf("open file: '%s' failed\n",full_filename);
         sd.errorHalt("open failed");

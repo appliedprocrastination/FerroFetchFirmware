@@ -3,7 +3,7 @@
 
 #include "Animation.h"
 //#include "SdFat.h"
-#include "debug.h"
+//#include "debug.h"
 #include "RamMonitor.h"
 //#include "FreeStack.h"
 
@@ -29,7 +29,7 @@ StateSwitchMode state_switch_mode;
 
 int BUTTON_LEFT = 5;
 int BUTTON_UP   = 6;
-int BUTTON_RIGHT= 7;
+int BUTTON_RIGHT= 16;
 int BUTTON_DOWN = 8;
 int BUTTON_PINS[4] = {BUTTON_LEFT, BUTTON_UP, BUTTON_RIGHT, BUTTON_DOWN};
 
@@ -42,6 +42,14 @@ const int SHIFT_DATA_PINS[12] = {15, 22, 23, 9, 10, 13, 11, 12, 35, 36, 37, 38};
 
 //Interrupt Flags:
 volatile uint8_t RESTART_ANIM_FLAG = 0;
+volatile uint8_t NEXT_ANIM_FLAG = 0;
+volatile uint8_t PREV_ANIM_FLAG = 0;
+volatile uint8_t PLAY_ANIM_FLAG = 0;
+
+//Interrupt timeout
+volatile uint32_t interrupt_timeout = 0;
+const uint32_t interrupt_timeout_delta = 1000; //ms
+
 
 //Timekeeping variables:
 float timeTilStart[COLS][ROWS]; //The time in ms until a magnet should start. Used to make movement patterns before the movement should happen
@@ -57,28 +65,18 @@ uint8_t dutyCycleCounter = 0;
 //int shortDelay = 500; //ms
 //int longDelay = 1000; //ms
 //unsigned long timeBetweenRefreshes = 6000;//12*shortDelay; //ms
-unsigned long frame_rate    = 4; //fps. 8 FPS seems to be the maximum our ferrofluid can handle 02.Sept.2019
+unsigned long frame_rate    = 2; //fps. 8 FPS seems to be the maximum our ferrofluid can handle 02.Sept.2019
 unsigned long frame_period   = 1000/frame_rate; //ms
 int animation_num = 0;
+int initial_animation_number = 8;
 
 //int frame = 1;
 
 
 //States
-//uint32_t prevMagnetState[COLS];
-//uint32_t currMagnetState[COLS];
 const int transport_anim_count = 20;
-//const int transport_anim_count = 2;
-
 Frame *  transport_anim_frames[transport_anim_count];
-const int loop_frames_count = 14;
-Frame *loop_frames[loop_frames_count];
-/*
-uint32_t transport_animation[transport_anim_count][COLS] = {
-    {0xa1b2c3d4, 1, 1, 1, 1, 1, 1,     1,        1,        1,         1,       1, 1, 1, 1, 1, 1, 1, 0xf1e2d3c4},
-    {0xa2b3c4d5, 1, 1, 1, 1, 1, 1,     1,        1,        1,         1,       1, 1, 1, 1, 1, 1, 1, 0xf2e3d4c5},
-};
-*/
+
 uint32_t transport_animation[transport_anim_count][COLS] = {
     {0, 0, 0, 0, 0, 0, 0,      0b1,        0,        0b1,         0,       0, 0, 0, 0, 0, 0, 0, 0},
     {0, 0, 0, 0, 0, 0, 0,     0b11,        0,       0b11,         0,       0, 0, 0, 0, 0, 0, 0, 0},
@@ -105,29 +103,9 @@ uint32_t transport_animation[transport_anim_count][COLS] = {
 };
 
 
-uint32_t loop_animation[loop_frames_count][COLS] = {
-    {0, 0, 0, 0, 0, 0, 0, 0b0100100, 0b0000000, 0b0000000, 0b1001000, 0, 0, 0, 0, 0, 0, 0, 0},
-    {0, 0, 0, 0, 0, 0, 0, 0b0110100, 0b0000100, 0b1000000, 0b1011000, 0, 0, 0, 0, 0, 0, 0, 0},
-    {0, 0, 0, 0, 0, 0, 0, 0b0010000, 0b0000100, 0b1000000, 0b0010000, 0, 0, 0, 0, 0, 0, 0, 0},
-    {0, 0, 0, 0, 0, 0, 0, 0b0011000, 0b1000100, 0b1000100, 0b0110000, 0, 0, 0, 0, 0, 0, 0, 0},
-    {0, 0, 0, 0, 0, 0, 0, 0b0001000, 0b1000000, 0b0000100, 0b0100000, 0, 0, 0, 0, 0, 0, 0, 0},
-    {0, 0, 0, 0, 0, 0, 0, 0b1001100, 0b1000000, 0b0000100, 0b1100100, 0, 0, 0, 0, 0, 0, 0, 0},
-    {0, 0, 0, 0, 0, 0, 0, 0b1000100, 0b0000000, 0b0000000, 0b1000100, 0, 0, 0, 0, 0, 0, 0, 0},
-
-    {0, 0, 0, 0, 0, 0, 0, 0b1100100, 0b0000100, 0b1000000, 0b1001100, 0, 0, 0, 0, 0, 0, 0, 0},
-    {0, 0, 0, 0, 0, 0, 0, 0b0100000, 0b0000100, 0b1000000, 0b0001000, 0, 0, 0, 0, 0, 0, 0, 0},
-    {0, 0, 0, 0, 0, 0, 0, 0b0110000, 0b1000100, 0b1000100, 0b0011000, 0, 0, 0, 0, 0, 0, 0, 0},
-    {0, 0, 0, 0, 0, 0, 0, 0b0010000, 0b1000000, 0b0000100, 0b0010000, 0, 0, 0, 0, 0, 0, 0, 0},
-    {0, 0, 0, 0, 0, 0, 0, 0b1011000, 0b1000000, 0b0000100, 0b0110100, 0, 0, 0, 0, 0, 0, 0, 0},
-    {0, 0, 0, 0, 0, 0, 0, 0b1001000, 0b0000000, 0b0000000, 0b0100100, 0, 0, 0, 0, 0, 0, 0, 0},
-    {0, 0, 0, 0, 0, 0, 0, 0b1101100, 0b0000000, 0b0000000, 0b1101100, 0, 0, 0, 0, 0, 0, 0, 0},
-};
 //Preloaded animations
-Animation* once_anim;
-Animation* loop_anim;
+Animation* transport_anim;
 Animation* anim1;
-Animation* anim2;
-Animation* anim3;
 
 //uint32_t dynamic_animation;
 Animation* current_anim;
@@ -141,76 +119,99 @@ RamMonitor ram;
 void turnMagnetOnIn(int x, int y, int inMillis, int forMillis, uint8_t uptime=100); //Uptime in percent
 void turnMagnetsOnIn(int* xArr, int y,int xLength, int inMillis, int forMillis, uint8_t uptime=100); //Uptime in percent
 
-//Functions:
-void report_ram_stat(const char *aname, uint32_t avalue)
-{
-  // Code from RamMonitorExample.cpp
-  // copyright Adrian Hunt (c) 2015 - 2016
-  Serial.print(aname);
-  Serial.print(": ");
-  Serial.print((avalue + 512) / 1024);
-  Serial.print(" Kb (");
-  Serial.print((((float)avalue) / ram.total()) * 100, 1);
-  Serial.print("% of ");
-  Serial.print((ram.total()+512)/1024 );
-  Serial.println(" Kb)");
-};
-
-void report_ram()
-{ 
-  // Code from RamMonitorExample.cpp
-  // copyright Adrian Hunt (c) 2015 - 2016
-  bool lowmem;
-  bool crash;
-
-  Serial.println("==== memory report ====");
-  Serial.printf("heapsize: %d\n",ram.heap_used());
-  Serial.printf("heapfree: %d\n",ram.heap_free());
-  Serial.printf("heaptotal: %d\n",ram.heap_total());
-  Serial.printf("stacksize: %d\n",ram.stack_used());
-  Serial.printf("stackfree: %d\n",ram.stack_free());
-  Serial.printf("stacktotal: %d\n",ram.stack_total());
-  Serial.printf("totalfree: %d\n",ram.free());
-  Serial.printf("total: %d\n",ram.total());
-  report_ram_stat("free", ram.adj_free());
-  report_ram_stat("stack", ram.stack_total());
-  report_ram_stat("heap", ram.heap_total());
-
-  lowmem = ram.warning_lowmem();
-  crash = ram.warning_crash();
-  if (lowmem || crash)
+void start_current_anim(void){
+  if (current_anim->get_playback_dir())
   {
-    Serial.println();
+    //dir = true = forward
+    current_anim->start_animation_at(0);
+  }else{
+    current_anim->start_animation_at(-1);
+  }
+  current_frame = current_anim->get_current_frame();
+}
 
-    if (crash)
-      Serial.println("**warning: stack and heap crash possible");
-    else if (lowmem)
-      Serial.println("**warning: unallocated memory running low");
-  };
+void start_anim_num(int number){
+  //TODO: Add test to check if animation exists
+  Serial.printf("Preparing Animation num: %d\n", number);
 
-  Serial.println();
-};
-
+  current_anim->read_from_SD_card(sd,number);
+  animation_num = number;
+  start_current_anim();
+}
 //Interrupt functions:
 
 void restart_anim_isr(void)
 {
-  cli();
-  RESTART_ANIM_FLAG = 1;
-  sei();
+  if (millis() > interrupt_timeout)
+  {
+    cli();
+    RESTART_ANIM_FLAG = 1;
+    sei();
+  }
 }
+
+void next_anim_isr(void){
+  if (millis() > interrupt_timeout)
+  {
+    cli();
+    NEXT_ANIM_FLAG = 1;
+    sei();
+  }
+}
+
+void prev_anim_isr(void)
+{
+  if (millis() > interrupt_timeout)
+  {
+    cli();
+    PREV_ANIM_FLAG = 1;
+    sei();
+  }
+}
+
+void play_anim_isr(void)
+{
+  if (millis() > interrupt_timeout)
+  {
+    cli();
+    PLAY_ANIM_FLAG = 1;
+    sei();
+  }
+}
+
 void restart_anim(void)
 {
-  current_anim = anim1;
+  Serial.println("Up button pushed");
+  start_anim_num(initial_animation_number);
 
-  current_anim->write_playback_type(ONCE);
-  current_anim->write_playback_dir(true);
-  current_anim->start_animation(0);
-  current_frame = current_anim->get_current_frame();
-  animation_num = 0;
   RESTART_ANIM_FLAG = 0;
-  delay(200);
-  Serial.println("Interrupt");
+  interrupt_timeout = millis() + interrupt_timeout_delta;
+}
+
+void next_anim_button(void)
+{
+  Serial.println("Right button pressed");
+  start_anim_num(animation_num+1);
+
+  NEXT_ANIM_FLAG = 0;
+  interrupt_timeout = millis() + interrupt_timeout_delta;
+}
+
+void prev_anim_button(void)
+{
+  Serial.println("Left button pressed");
+  start_anim_num(animation_num-1);
+
+  PREV_ANIM_FLAG = 0;
+  interrupt_timeout = millis() + interrupt_timeout_delta;
+}
+
+void play_anim_button(void){
+  Serial.println("Play button pressed");
+  start_anim_num(animation_num--);
+  
+  PLAY_ANIM_FLAG = 0;
+  interrupt_timeout = millis() + interrupt_timeout_delta;
 }
 
 /*
@@ -451,81 +452,10 @@ void movementAlgorithm(){
 
     if(current_anim->anim_done()){
       //TODO: Switch to new/next animation?
-      //remember to use current_anim->start_animation() after loading the next animation
-      Serial.printf("New Anim!\n");
-      animation_num++;
-      animation_num+=5;
-      Serial.printf("Preparing Animation num: %d\n",animation_num);
-      if(animation_num == 1){
-        /*
-        loop_anim->write_max_loop_count(5);
-        loop_anim->write_playback_type(LOOP_N_TIMES);
-        loop_anim->write_playback_dir(true);
-
-        current_anim = loop_anim;
-        current_anim->start_animation();
-        current_frame = current_anim->get_current_frame();
-        */
-        //digitalWrite(SD_READ_INDICATOR, HIGH);
-        anim2->read_from_SD_card(sd,20);
-        anim2->write_playback_type(ONCE);
-        anim2->write_playback_dir(true);
-        //digitalWrite(SD_READ_INDICATOR, LOW);
-        //digitalWrite(SD_READ_INDICATOR, HIGH);
-        
-        current_anim = anim2;
-        current_anim->start_animation();
-        current_frame = current_anim->get_current_frame();
-        //digitalWrite(SD_READ_INDICATOR, LOW);
+      //remember to use current_anim->start_animation_at() after loading the next animation
+      if(PLAY_ANIM_FLAG){
+        play_anim_button();
       }
-      else if (animation_num == 2)
-      {
-        /*
-        loop_anim->write_max_loop_count(5);
-        loop_anim->write_playback_type(LOOP_N_TIMES);
-        loop_anim->write_playback_dir(false);
-
-        current_anim = loop_anim;
-        current_anim->start_animation(loop_frames_count-1);
-        current_frame = current_anim->get_current_frame();
-        */
-        //anim3->read_from_SD_card(sd, 12);
-        anim2->write_playback_type(ONCE);
-        anim2->write_playback_dir(false);
-
-        current_anim = anim2;
-        current_anim->start_animation(-1);
-        current_frame = current_anim->get_current_frame();
-        //current_frame->write_duty_cycle_at(9,4,14-animation_num);
-        //Serial.printf("Duty: %d/20\n", 14 - animation_num);
-      }
-      else if (animation_num == 0)
-      {
-        /*
-        once_anim->write_playback_type(ONCE);
-        once_anim->write_playback_dir(false);
-
-        current_anim = once_anim;
-        current_anim->start_animation(transport_anim_count-1);
-
-        current_frame = current_anim->get_current_frame();
-        */
-        anim2->write_playback_dir(false);
-        current_anim = anim2;
-        current_anim->start_animation(-1);
-        current_frame = current_anim->get_current_frame();
-      }else if (animation_num == 0){
-        anim1->write_playback_dir(false);
-        current_anim = anim1;
-        current_anim->start_animation(-1);
-        current_frame = current_anim->get_current_frame();
-      }else{
-        //No animation is currently loaded, running or prepared to run.
-        //Inserting a delay here so the Teensy doesn't go into overdrive, causing it to be unresponsive to programming events.
-        current_frame = current_anim->get_frame(-1);
-        delay(50);
-      }
-      //animation_num++;
     }
     if(animation_mode != PRELOADED_ANIMATION){
       //TODO: handle incoming changes
@@ -535,7 +465,14 @@ void movementAlgorithm(){
     if (RESTART_ANIM_FLAG)
     {
       restart_anim();
+    }
 
+    if(NEXT_ANIM_FLAG){
+      next_anim_button();
+    }
+
+    if(PREV_ANIM_FLAG){
+      prev_anim_button();
     }
 
     Serial.print("Preparing Frame: ");
@@ -546,7 +483,7 @@ void movementAlgorithm(){
 
     
     //ram.run();
-    //report_ram();
+    //report_ram(ram);
     /*
     if(current_anim->get_current_frame_num() == -1){
       Serial.printf("Presumably empty frame:");
@@ -558,7 +495,7 @@ void movementAlgorithm(){
     }
     */
 
-    time_for_next_frame += frame_period; //Theoretically the same as timeThisRefresh+frame_period, but in case a turn(ms) is skipped for some reason this will be more accurate.
+    time_for_next_frame += frame_period; 
   }
 }
 
@@ -566,15 +503,19 @@ void setup() {
   Serial.begin(9600);
   ram.initialize();
   //Serial.begin(9600);
-  debug::init(Serial);
-  while(!Serial);
-  Serial.println("Serial initiated");
+  //debug::init(Serial);
+  while(millis()<1000){
+    if(Serial){
+      break;
+    }
+  }
 
   if (!sd.begin())
   {
     Serial.println("SD initialitization failed. Read unsucessful.");
     sd_present = false;
   }
+  Serial.println("Serial initiated");
 
 
   for (int i = 0; i < 4; i++)
@@ -590,6 +531,9 @@ void setup() {
   }
 
   attachInterrupt(BUTTON_UP,restart_anim_isr,RISING);
+  attachInterrupt(BUTTON_RIGHT, next_anim_isr, RISING);
+  attachInterrupt(BUTTON_LEFT, prev_anim_isr, RISING);
+  attachInterrupt(BUTTON_DOWN, play_anim_isr, RISING);
 
   pinMode(SHIFT_CLK_PIN,OUTPUT);
   pinMode(SHIFT_ENABLE_PIN,OUTPUT);
@@ -622,7 +566,7 @@ void setup() {
   }
 
   ram.run();
-  report_ram();
+  report_ram(ram);
   //Load preloaded frames into objects.
   /*
   for (size_t i = 0; i < transport_anim_count; i++)
@@ -630,20 +574,20 @@ void setup() {
     transport_anim_frames[i] = new Frame(transport_animation[i]);
   }
 
-  once_anim = new Animation(transport_anim_frames,transport_anim_count,true,false);
-  once_anim->write_playback_type(ONCE); 
-  once_anim->write_playback_dir(true);
+  transport_anim = new Animation(transport_anim_frames,transport_anim_count,true,false);
+  transport_anim->write_playback_type(ONCE); 
+  transport_anim->write_playback_dir(true);
    */
-  //once_anim->save_to_SD_card(1);
+  //transport_anim->save_to_SD_card(1);
 
 
   /*
-  once_anim->save_to_SD_card(99);
-  once_anim->write_playback_type(LOOP); //Set to something other than what's in the file being read below to validate that it's being overwritten
-  once_anim->write_playback_dir(false); //Set to something other than what's in the file being read below to validate that it's being overwritten
-  once_anim->read_from_SD_card(sd, 99);
-  Serial.printf("Type: %d (LOOP = %d)\n",(int)once_anim->get_playback_type(),(int) LOOP);
-  Serial.printf("Dir: %d (backwards = %d)\n",(int)once_anim->get_playback_dir(),(int)false);
+  transport_anim->save_to_SD_card(99);
+  transport_anim->write_playback_type(LOOP); //Set to something other than what's in the file being read below to validate that it's being overwritten
+  transport_anim->write_playback_dir(false); //Set to something other than what's in the file being read below to validate that it's being overwritten
+  transport_anim->read_from_SD_card(sd, 99);
+  Serial.printf("Type: %d (LOOP = %d)\n",(int)transport_anim->get_playback_type(),(int) LOOP);
+  Serial.printf("Dir: %d (backwards = %d)\n",(int)transport_anim->get_playback_dir(),(int)false);
   */
   /*
   for (size_t i = 0; i < loop_frames_count; i++)
@@ -656,23 +600,19 @@ void setup() {
   loop_anim->write_playback_dir(true);
   //loop_anim->save_to_SD_card(2);
   */
-  anim1 = new Animation(nullptr, 1);
-  //anim1->save_to_SD_card(999);
+  anim1 = new Animation(nullptr, 1, true);
   if(sd_present){
-    anim1->read_from_SD_card(sd, 2);
+    anim1->read_from_SD_card(sd, initial_animation_number);
   }
-  anim1->write_playback_type(ONCE);
-  anim1->write_playback_dir(true);
 
-  anim2 = new Animation(nullptr, 1);
-  anim3 = new Animation(nullptr, 1);
+  animation_num = initial_animation_number;
 
   current_anim = anim1;
-  current_anim->start_animation();
-  current_frame = current_anim->get_current_frame();  
+  current_frame = current_anim->get_current_frame();
+  //start_current_anim();
   
   ram.run();
-  report_ram();
+  report_ram(ram);
 
   startTime = micros();
   timeThisRefresh = millis();
@@ -687,7 +627,6 @@ void loop(){
   
   movementAlgorithm();
   refreshScreen();
-
     /*
   if(animation_mode == ASYNC_ANIMATION){
     //TODO: Figure out if this is still necessary in async animation or if the frame obj. can be used.
@@ -696,6 +635,7 @@ void loop(){
     }
   }
   */
+ 
 
   #if(DEBUG)
     if(counter >= 1000){

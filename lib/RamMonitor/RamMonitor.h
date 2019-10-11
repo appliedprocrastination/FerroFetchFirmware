@@ -80,7 +80,7 @@
 //
 
 #ifndef RAMMONITOR_H
-#define RAMMONITOR_H "1.0"
+#define RAMMONITOR_H
 
 #include <malloc.h>
 #include <inttypes.h>
@@ -207,6 +207,56 @@ public:
   };
   
 };
-  
+
+//Functions:
+void report_ram_stat(RamMonitor ram, const char *aname, uint32_t avalue)
+{
+  // Code from RamMonitorExample.cpp
+  // copyright Adrian Hunt (c) 2015 - 2016
+  Serial.print(aname);
+  Serial.print(": ");
+  Serial.print((avalue + 512) / 1024);
+  Serial.print(" Kb (");
+  Serial.print((((float)avalue) / ram.total()) * 100, 1);
+  Serial.print("% of ");
+  Serial.print((ram.total() + 512) / 1024);
+  Serial.println(" Kb)");
+};
+
+void report_ram(RamMonitor ram)
+{
+  // Code from RamMonitorExample.cpp
+  // copyright Adrian Hunt (c) 2015 - 2016
+  bool lowmem;
+  bool crash;
+
+  Serial.println("==== memory report ====");
+  Serial.printf("heapsize: %d\n", ram.heap_used());
+  Serial.printf("heapfree: %d\n", ram.heap_free());
+  Serial.printf("heaptotal: %d\n", ram.heap_total());
+  Serial.printf("stacksize: %d\n", ram.stack_used());
+  Serial.printf("stackfree: %d\n", ram.stack_free());
+  Serial.printf("stacktotal: %d\n", ram.stack_total());
+  Serial.printf("totalfree: %d\n", ram.free());
+  Serial.printf("total: %d\n", ram.total());
+  report_ram_stat(ram, "free", ram.adj_free());
+  report_ram_stat(ram, "stack", ram.stack_total());
+  report_ram_stat(ram, "heap", ram.heap_total());
+
+  lowmem = ram.warning_lowmem();
+  crash = ram.warning_crash();
+  if (lowmem || crash)
+  {
+    Serial.println();
+
+    if (crash)
+      Serial.println("**warning: stack and heap crash possible");
+    else if (lowmem)
+      Serial.println("**warning: unallocated memory running low");
+  };
+
+  Serial.println();
+};
+
 #endif
   
