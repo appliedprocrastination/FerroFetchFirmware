@@ -127,6 +127,7 @@ private:
     //Pointers to the SD buffers are stored here so they can be free'd when the object is deleted
     //TODO: Can these be left non-volatile?
     uint8_t  *_duty_buf = nullptr;
+    uint8_t *_frame_buf8 = nullptr;    
     uint32_t *_frame_buf = nullptr;
 };
 

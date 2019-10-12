@@ -20,10 +20,10 @@ bool sd_present = true;
 enum AnimationMode{PRELOADED_ANIMATION, DYNAMIC_ANIMATION, ASYNC_ANIMATION};
 AnimationMode animation_mode = PRELOADED_ANIMATION;
 
-int STATE_SWITCH_PINS[4] = {27,25,26,4};
+int STATE_SWITCH_PINS[4] = {27,26,25,4};
 enum StateSwitchMode{ LEFT = 27,
-                      MIDRIGHT = 25,
                       MIDLEFT = 26,
+                      MIDRIGHT = 25,
                       RIGHT = 4};
 StateSwitchMode state_switch_mode;
 
@@ -45,11 +45,12 @@ volatile uint8_t RESTART_ANIM_FLAG = 0;
 volatile uint8_t NEXT_ANIM_FLAG = 0;
 volatile uint8_t PREV_ANIM_FLAG = 0;
 volatile uint8_t PLAY_ANIM_FLAG = 0;
+volatile uint8_t SWITCH_FLAG = 0;
 
 //Interrupt timeout
 volatile uint32_t interrupt_timeout = 0;
+volatile uint32_t interrupt_timeout_switch = 0;
 const uint32_t interrupt_timeout_delta = 1000; //ms
-
 
 //Timekeeping variables:
 float timeTilStart[COLS][ROWS]; //The time in ms until a magnet should start. Used to make movement patterns before the movement should happen
@@ -68,10 +69,10 @@ uint8_t dutyCycleCounter = 0;
 unsigned long frame_rate    = 2; //fps. 8 FPS seems to be the maximum our ferrofluid can handle 02.Sept.2019
 unsigned long frame_period   = 1000/frame_rate; //ms
 int animation_num = 0;
-int initial_animation_number = 8;
+int initial_animation_number = 10;
+int alternative_animation_number = 99; //Used at Skaperfestivalen to display user made animations
 
 //int frame = 1;
-
 
 //States
 const int transport_anim_count = 20;
@@ -179,10 +180,28 @@ void play_anim_isr(void)
   }
 }
 
+void switch_turned_isr(void){
+  if (millis() > interrupt_timeout_switch)
+  {
+    cli();
+    SWITCH_FLAG = 1;
+    sei();
+  }
+}
+
 void restart_anim(void)
 {
   Serial.println("Up button pushed");
-  start_anim_num(initial_animation_number);
+  if (state_switch_mode == RIGHT)
+  {
+    start_anim_num(initial_animation_number);
+  }else if(state_switch_mode == MIDRIGHT){
+    start_anim_num(alternative_animation_number);
+  }else{
+    //Error, assume default mode (RIGHT)
+    start_anim_num(initial_animation_number);
+  }
+  
 
   RESTART_ANIM_FLAG = 0;
   interrupt_timeout = millis() + interrupt_timeout_delta;
@@ -191,7 +210,13 @@ void restart_anim(void)
 void next_anim_button(void)
 {
   Serial.println("Right button pressed");
-  start_anim_num(animation_num+1);
+  if (state_switch_mode != MIDRIGHT)
+  {
+    start_anim_num(animation_num+1);
+  }else{
+    //ignore this button in MIDRIGHT mode
+  }
+  
 
   NEXT_ANIM_FLAG = 0;
   interrupt_timeout = millis() + interrupt_timeout_delta;
@@ -200,18 +225,72 @@ void next_anim_button(void)
 void prev_anim_button(void)
 {
   Serial.println("Left button pressed");
-  start_anim_num(animation_num-1);
+  if (state_switch_mode != MIDRIGHT)
+  {
+    start_anim_num(animation_num - 1);
+  }
+  else
+  {
+    //ignore this button in MIDRIGHT mode
+  }
 
   PREV_ANIM_FLAG = 0;
   interrupt_timeout = millis() + interrupt_timeout_delta;
 }
 
 void play_anim_button(void){
-  Serial.println("Play button pressed");
-  start_anim_num(animation_num--);
-  
+  Serial.printf("Play button pressed. Stating animation number: %d\n",animation_num);
+  start_current_anim();
+
   PLAY_ANIM_FLAG = 0;
   interrupt_timeout = millis() + interrupt_timeout_delta;
+}
+
+void check_switch_state(void){
+  uint32_t switch_states[4];
+  uint8_t numlow = 0;
+
+  delay(50); //This is not optimal, because if the switch is turned during an animation, the animation will temporarily be stopped. Can implement a timeout variable instead, just cant be arsed right now.
+  
+  Serial.print("Switch pins: ");
+  for (uint8_t i = 0; i < 4; i++)
+  {
+    switch_states[i] = digitalRead(STATE_SWITCH_PINS[i]);
+    if(switch_states[i] == 0){
+      numlow++;
+      state_switch_mode = (enum StateSwitchMode) STATE_SWITCH_PINS[i];
+    }
+    Serial.print(switch_states[i]);
+  }
+  Serial.println();
+
+  if(numlow > 1){
+    check_switch_state();
+  }else{
+    SWITCH_FLAG = 0;
+    interrupt_timeout_switch = millis() + 10;
+    switch (state_switch_mode)
+    {
+    case LEFT:
+      /* not implemented */
+      break;
+    case MIDLEFT:
+      /* not implemented */
+      break;
+    case MIDRIGHT:
+      animation_num = alternative_animation_number;
+      Serial.printf("Animation number: %d\n",animation_num);
+      break;
+    case RIGHT:
+      animation_num = initial_animation_number;
+      Serial.printf("Animation number: %d\n", animation_num);
+      break;
+    default:
+      Serial.println("No state detected");
+      Serial.printf("State swith mode: %d\n",state_switch_mode);
+      break;
+    }
+  }
 }
 
 /*
@@ -504,7 +583,8 @@ void setup() {
   ram.initialize();
   //Serial.begin(9600);
   //debug::init(Serial);
-  while(millis()<1000){
+  //while(!Serial);
+  while(millis()<5000){
     if(Serial){
       break;
     }
@@ -521,6 +601,8 @@ void setup() {
   for (int i = 0; i < 4; i++)
   {
     pinMode(STATE_SWITCH_PINS[i],INPUT_PULLUP);
+    attachInterrupt(STATE_SWITCH_PINS[i],switch_turned_isr,FALLING);
+
     pinMode(BUTTON_PINS[i],INPUT_PULLDOWN);
     if(digitalRead(STATE_SWITCH_PINS[i]) == LOW){
       state_switch_mode = (StateSwitchMode)STATE_SWITCH_PINS[i];
@@ -564,6 +646,8 @@ void setup() {
     //"Deinitialize" pins that are connected but not supposed to be used.
     pinMode(SHIFT_DATA_PINS[i], INPUT);
   }
+
+  check_switch_state();
 
   ram.run();
   report_ram(ram);
@@ -627,6 +711,9 @@ void loop(){
   
   movementAlgorithm();
   refreshScreen();
+  if(SWITCH_FLAG){
+    check_switch_state();
+  }
     /*
   if(animation_mode == ASYNC_ANIMATION){
     //TODO: Figure out if this is still necessary in async animation or if the frame obj. can be used.

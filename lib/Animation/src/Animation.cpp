@@ -494,18 +494,24 @@ int Animation::read_from_SD_card(SdFatSdioEX sd, uint16_t file_index){
     {
         delete _frames;
     }
-    
-    
+    if (_frame_buf8 != nullptr){
+        delete _frame_buf8;
+    }
+    if (_duty_buf != nullptr)
+    {
+        delete _duty_buf;
+    }
+
     //Read ASCII config file:
-    //(Using ASCII here because we as users are more likely to 
+    //(Using ASCII here because we as users are more likely to
     // change these parameters manually than the animation itself.
     // The animation will mainly be updated through a GUI program)
     //filename format: "A000_C.txt" for config files
     //filename format: "A000_D.bin" for data files
 
-
-    if (!sdFile.open(full_filename, O_RDONLY)) {
-        Serial.printf("open file: '%s' failed\n",full_filename);
+    if (!sdFile.open(full_filename, O_RDONLY))
+    {
+        Serial.printf("open file: '%s' failed\n", full_filename);
         sd.errorHalt("open failed");
         return -1;
     }
@@ -537,15 +543,15 @@ int Animation::read_from_SD_card(SdFatSdioEX sd, uint16_t file_index){
     const int cols = _cols;
     const int rows = _rows;
     const int frames = _num_frames;
-    uint8_t* frame_buf8 = new uint8_t[frames*cols*sizeof(uint32_t)];
-    if (frame_buf8 == 0)
+    _frame_buf8 = new uint8_t[frames * cols * sizeof(uint32_t)];
+    if (_frame_buf8 == 0)
     {
         Serial.printf("Could not allocate memory for frames of size: %d\n"
         "Available space in RAM: %d",frames*cols*sizeof(uint32_t), FreeStack());
     }
-    
-    _frame_buf = (uint32_t*) frame_buf8;
-    
+
+    _frame_buf = (uint32_t *)_frame_buf8;
+
     _duty_buf = new uint8_t[frames*cols*rows*sizeof(uint8_t)];
     if (&_duty_buf[0] == 0 || _duty_buf == 0 || _duty_buf == (uint8_t*) nullptr || &_duty_buf[0] == (uint8_t*) nullptr || _duty_buf == nullptr || &_duty_buf[0] == nullptr || _duty_buf == NULL || &_duty_buf[0] == NULL ||&_duty_buf[0] ==(uint8_t *) 0 || _duty_buf == (uint8_t *)0 )
     {
@@ -565,8 +571,8 @@ int Animation::read_from_SD_card(SdFatSdioEX sd, uint16_t file_index){
         sd.errorHalt("open failed");
         return -1;
     }
-    
-    sdFile.read(frame_buf8,frames*cols*sizeof(uint32_t));
+
+    sdFile.read(_frame_buf8, frames * cols * sizeof(uint32_t));
     sdFile.read(_duty_buf,frames*cols*rows);
     
 
@@ -598,7 +604,7 @@ int Animation::read_from_SD_card(SdFatSdioEX sd, uint16_t file_index){
     {
         //The arrays sent to the frame constructor are marked as NOT dynamically allocated (even though they are)
         //This is because the "delete" will be handled by the animation object, and should therefore not be performed by the frame object.
-        _frames[frame] = new Frame(&_frame_buf[frame*cols],false,&_duty_buf[frame*cols*rows],false); 
+        _frames[frame] = new Frame(&_frame_buf[frame * cols], false, &_duty_buf[frame * cols * rows], false);
     }
     _malloced_frame_array = true;
     _malloced_frames = true;
