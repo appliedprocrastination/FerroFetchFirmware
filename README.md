@@ -1,4 +1,4 @@
-#THIS REPO HAS BEEN MOVED:
+# THIS REPO HAS BEEN MOVED!
 [Now found under the AppliedProcrastination organization](https://github.com/appliedprocrastination/FerroFetchFirmware)
 
 # FerroFetchFirmware
