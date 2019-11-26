@@ -1,6 +1,3 @@
-# THIS REPO HAS BEEN MOVED!
-[Now found under the AppliedProcrastination organization](https://github.com/appliedprocrastination/FerroFetchFirmware)
-
 # FerroFetchFirmware
 Firmware for the Applied Procrastination "Fetch" ferrofluid display
 
