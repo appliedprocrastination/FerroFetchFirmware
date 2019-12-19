@@ -6,6 +6,16 @@
 //#include "debug.h"
 #include "RamMonitor.h"
 //#include "FreeStack.h"
+#include <RTCLib.h>
+
+//int I2C_SCK = 19; #These are defined in "Wire.h", so we don't need to redefine them, but they are written down for future reference
+//int I2C_SDA = 18; #These are defined in "Wire.h", so we don't need to redefine them, but they are written down for future reference
+
+RTC_DS3231 rtc;
+bool rtc_is_present = true;
+DateTime rtc_now;
+float rtc_temperature = 0;
+uint8_t current_minute = 0;
 
 const bool DEBUG = true;
 int counter = 0;                //debugvariables
@@ -17,7 +27,8 @@ bool sd_present = true;
 //PRELOADED_ANIMATION:  The entire animation is written into memory before the program is compiled
 //DYNAMIC_ANIMATION:    The animation can be changed/updated dynamically, but is based on a fixed framerate
 //ASYNC_ANIMATION:      The animation is independent of the framerate and a pixel can be set at any given time.
-enum AnimationMode{PRELOADED_ANIMATION, DYNAMIC_ANIMATION, ASYNC_ANIMATION};
+//CLOCK_ANIMATION:      The Ferrofluid Display acts as a clock with 1 minute resolution.
+enum AnimationMode{PRELOADED_ANIMATION, DYNAMIC_ANIMATION, ASYNC_ANIMATION, CLOCK_ANIMATION};
 AnimationMode animation_mode = PRELOADED_ANIMATION;
 
 int STATE_SWITCH_PINS[4] = {27,26,25,4};
@@ -71,7 +82,7 @@ unsigned long frame_period   = 1000/frame_rate; //ms
 int animation_num = 0;
 int initial_animation_number = 10;
 int alternative_animation_number = 99; //Used at Skaperfestivalen to display user made animations
-
+int clock_anim_num = 0;
 //int frame = 1;
 
 //States
@@ -272,20 +283,35 @@ void check_switch_state(void){
     switch (state_switch_mode)
     {
     case LEFT:
+      animation_mode = PRELOADED_ANIMATION;
+      sd.chdir("/");
       /* not implemented */
       break;
     case MIDLEFT:
-      /* not implemented */
+      if(rtc_is_present){
+        animation_mode = CLOCK_ANIMATION;
+        bool test = sd.chdir("CLK");
+        Serial.printf("Changed dir to CLK: %d\n",test);
+        clock_anim_num = ((int)rtc_now.hour())<<6 | ((int)rtc_now.minute()); //Highest possible minute value is 60d=11100b (6-bit). The number is unique and a corresponding anim is stored on SD card
+        Serial.printf("Clock Anim Num: %d\n",clock_anim_num);
+        start_anim_num(clock_anim_num);
+      }
       break;
     case MIDRIGHT:
+      animation_mode = PRELOADED_ANIMATION;
+      sd.chdir("/");
       animation_num = alternative_animation_number;
       Serial.printf("Animation number: %d\n",animation_num);
       break;
     case RIGHT:
+      animation_mode = PRELOADED_ANIMATION;
+      sd.chdir("/");
       animation_num = initial_animation_number;
       Serial.printf("Animation number: %d\n", animation_num);
       break;
     default:
+      animation_mode = PRELOADED_ANIMATION;
+      sd.chdir("/");
       Serial.println("No state detected");
       Serial.printf("State swith mode: %d\n",state_switch_mode);
       break;
@@ -525,6 +551,19 @@ void movementAlgorithm(){
     Serial.print("time_for_next_frame: ");
     Serial.println(time_for_next_frame);
   #endif
+    if(animation_mode == CLOCK_ANIMATION){
+      if (rtc_is_present)
+      {        
+        if (rtc_now.minute() > current_minute)
+        {
+          current_minute = rtc_now.minute();
+          clock_anim_num = ((int)rtc_now.hour())<<6 | ((int)rtc_now.minute()); //Highest possible minute value is 60d=11100b (6-bit). The number is unique and a corresponding anim is stored on SD card
+          Serial.printf("Clock Anim Num: %d\n",clock_anim_num);
+          start_anim_num(clock_anim_num);
+          time_for_next_frame = timeThisRefresh;
+        }
+      }
+    }
   if(timeThisRefresh >= time_for_next_frame){
     
     current_anim->goto_next_frame();
@@ -535,10 +574,6 @@ void movementAlgorithm(){
       if(PLAY_ANIM_FLAG){
         play_anim_button();
       }
-    }
-    if(animation_mode != PRELOADED_ANIMATION){
-      //TODO: handle incoming changes
-      //(or should this be done more often than once per frame? That would slow down the shifting)
     }
 
     if (RESTART_ANIM_FLAG)
@@ -597,6 +632,22 @@ void setup() {
   }
   Serial.println("Serial initiated");
 
+  if (!rtc.begin())
+  {
+    Serial.println("Couldn't find RTC");
+    rtc_is_present = false;
+  }
+  if(rtc_is_present){
+    if (rtc.lostPower())
+    {
+      Serial.println("RTC lost power, lets set the time.!");
+      // following line sets the RTC to the date & time this sketch was compiled
+      rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+    }
+    rtc_now = rtc.now();
+    rtc_temperature = rtc.getTemperature();
+  }
+
 
   for (int i = 0; i < 4; i++)
   {
@@ -647,53 +698,21 @@ void setup() {
     pinMode(SHIFT_DATA_PINS[i], INPUT);
   }
 
-  check_switch_state();
-
   ram.run();
   report_ram(ram);
-  //Load preloaded frames into objects.
-  /*
-  for (size_t i = 0; i < transport_anim_count; i++)
-  {
-    transport_anim_frames[i] = new Frame(transport_animation[i]);
-  }
 
-  transport_anim = new Animation(transport_anim_frames,transport_anim_count,true,false);
-  transport_anim->write_playback_type(ONCE); 
-  transport_anim->write_playback_dir(true);
-   */
-  //transport_anim->save_to_SD_card(1);
-
-
-  /*
-  transport_anim->save_to_SD_card(99);
-  transport_anim->write_playback_type(LOOP); //Set to something other than what's in the file being read below to validate that it's being overwritten
-  transport_anim->write_playback_dir(false); //Set to something other than what's in the file being read below to validate that it's being overwritten
-  transport_anim->read_from_SD_card(sd, 99);
-  Serial.printf("Type: %d (LOOP = %d)\n",(int)transport_anim->get_playback_type(),(int) LOOP);
-  Serial.printf("Dir: %d (backwards = %d)\n",(int)transport_anim->get_playback_dir(),(int)false);
-  */
-  /*
-  for (size_t i = 0; i < loop_frames_count; i++)
-  {
-    loop_frames[i] = new Frame(loop_animation[i]);
-  }
-  loop_anim = new Animation(loop_frames, loop_frames_count,true,false);
-  loop_anim->write_max_loop_count(10);
-  loop_anim->write_playback_type(LOOP_N_TIMES);
-  loop_anim->write_playback_dir(true);
-  //loop_anim->save_to_SD_card(2);
-  */
   anim1 = new Animation(nullptr, 1, true);
-  if(sd_present){
-    anim1->read_from_SD_card(sd, initial_animation_number);
-  }
-
+  
   animation_num = initial_animation_number;
+
+  if(sd_present){
+    anim1->read_from_SD_card(sd, animation_num);
+  }
 
   current_anim = anim1;
   current_frame = current_anim->get_current_frame();
   //start_current_anim();
+  check_switch_state();
   
   ram.run();
   report_ram(ram);
@@ -705,10 +724,25 @@ void setup() {
   Serial.print(startTime);
   Serial.println("us");
 }
-
 void loop(){
   timeThisRefresh = millis();
+  if (rtc_is_present)
+  {
+    rtc_now = rtc.now();
+    rtc_temperature = rtc.getTemperature();
+    
+    if (rtc_now.minute() > current_minute)
+    {
+      Serial.printf("One minute has passed. New Time: %2d:%2d:%2d\n",rtc_now.hour(),rtc_now.minute(),rtc_now.second());
+      if (animation_mode != CLOCK_ANIMATION)
+      {
+        current_minute = rtc_now.minute();
+      }
+      
+    }
+  }
   
+
   movementAlgorithm();
   refreshScreen();
   if(SWITCH_FLAG){
