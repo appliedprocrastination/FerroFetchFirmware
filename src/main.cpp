@@ -336,7 +336,7 @@ void setup() {
   ram.run();
   report_ram(ram);
 
-  anim1 = new Animation(nullptr, 1, true);
+  anim1 = new Animation(nullptr, 1);
   
   animation_num = initial_animation_number;
 
@@ -346,9 +346,9 @@ void setup() {
 
 
   //START testing for animation merge
-  anim2 = new Animation(nullptr, 1, true);
+  anim2 = new Animation(nullptr, 1);
   //END testing for animation merge
-
+  
   current_anim = anim1;
   check_switch_state();
   
